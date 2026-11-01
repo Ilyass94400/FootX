@@ -136,3 +136,8 @@
 .dup { position: absolute; top: -8px; right: -8px; background: var(--accent); color: var(--accent-ink); font-family: var(--title); font-weight: 800; font-size: 15px; padding: 1px 7px; border-radius: 3px; box-shadow: 2px 2px 0 #000; }
 
 @media (max-width: 700px) { .open-zone { gap: 28px; } .open-panel { width: 100%; } }
+
+.open-error { color: #ff6b6b; font-size: 14px; }
+.new-badge { position: absolute; top: -8px; left: -6px; z-index: 6; background: #ff4d4d; color: #fff; font-family: var(--title); font-weight: 800; font-size: 12px; text-transform: uppercase; padding: 1px 6px; border-radius: 3px; box-shadow: 2px 2px 0 #000; transform: rotate(-4deg); }
+.card-3d-reveal .new-badge { top: 4px; left: 4px; }
+.result-head .muted { font-size: 14px; }

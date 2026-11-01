@@ -1,9 +1,10 @@
 import { getDiscordProfile } from '../lib/useSession'
+import { useStock } from '../lib/boosterStock'
 
 // Maquette : nécessite une table des collections par joueur pour un vrai classement.
 export default function Classement({ session }) {
   const { name, avatar } = getDiscordProfile(session)
-  const boosters = parseInt(localStorage.getItem('footx_booster_count') || '0')
+  const boosters = useStock().opened
 
   return (
     <div>

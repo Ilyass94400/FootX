@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
 import { go } from '../lib/useRoute'
 import { getDiscordProfile } from '../lib/useSession'
+import { useStock } from '../lib/boosterStock'
 import { ANNOUNCEMENTS } from '../data/announcements'
 import PlayerCard from '../components/PlayerCard'
 import Pitch from '../components/Pitch'
@@ -11,7 +12,7 @@ export default function Home({ session }) {
   const [slide, setSlide] = useState(0)
   const [total, setTotal] = useState(0)
   const [preview, setPreview] = useState([])
-  const boosters = parseInt(localStorage.getItem('footx_booster_count') || '0')
+  const boosters = useStock().opened
 
   // Les bannières tournent toutes les 7s
   useEffect(() => {

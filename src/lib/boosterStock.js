@@ -1,66 +1,54 @@
 import { useEffect, useState } from 'react'
+import { supabase } from '../supabase'
 
-// Stock de boosters du joueur (sauvegardé dans le navigateur pour l'instant).
-// 1 booster revient toutes les 10 min, jusqu'à 100 max. Un nouveau joueur commence avec 20.
+// Stock de boosters : géré par Supabase (fonction get_my_stock / open_boosters).
+// Règles côté serveur : départ à 20, +1 toutes les 10 min, 100 max.
 export const MAX_STOCK = 100
-export const START_STOCK = 20
-export const REGEN_MS = 10 * 60 * 1000
 
-const KEY = 'footx_stock'
 const EVENT = 'footx:stock'
+let cache = null // { stock, boosters_opened, next_in (s), at (ms) }
 
-const read = () => {
-  try { return JSON.parse(localStorage.getItem(KEY)) } catch { return null }
-}
-const save = (s) => {
-  localStorage.setItem(KEY, JSON.stringify(s))
-  window.dispatchEvent(new Event(EVENT))
-}
+const emit = () => window.dispatchEvent(new Event(EVENT))
 
-// Calcule le stock actuel en ajoutant les boosters regagnés depuis la dernière fois
-export function getStock() {
-  const now = Date.now()
-  let s = read() || { n: START_STOCK, t: now }
-  if (s.n >= MAX_STOCK) {
-    s = { n: MAX_STOCK, t: now }
-  } else {
-    const gained = Math.floor((now - s.t) / REGEN_MS)
-    if (gained > 0) {
-      const n = Math.min(MAX_STOCK, s.n + gained)
-      s = { n, t: n >= MAX_STOCK ? now : s.t + gained * REGEN_MS }
-    }
-  }
-  localStorage.setItem(KEY, JSON.stringify(s))
-  return { n: s.n, nextIn: s.n >= MAX_STOCK ? null : REGEN_MS - (now - s.t) }
+export function setStockFromServer(d) {
+  cache = { stock: d.stock, boosters_opened: d.boosters_opened, next_in: d.next_in, at: Date.now() }
+  emit()
 }
 
-export function spendStock(k) {
-  const cur = getStock()
-  if (k > cur.n) return false
-  const raw = read()
-  // si on était plein, le chrono de recharge démarre maintenant
-  save({ n: cur.n - k, t: cur.n >= MAX_STOCK ? Date.now() : raw.t })
-  return true
+let loading = null
+export function refreshStock() {
+  loading ??= supabase.rpc('get_my_stock').then(({ data, error }) => {
+    loading = null
+    if (!error && data) setStockFromServer(data)
+    return cache
+  })
+  return loading
 }
 
-export function addStock(k) {
-  const cur = getStock()
-  save({ n: Math.min(MAX_STOCK, cur.n + k), t: read().t })
+const compute = () => {
+  if (!cache) return { n: 0, nextIn: null, opened: 0, ready: false }
+  const nextIn = cache.next_in == null ? null : Math.max(0, cache.next_in * 1000 - (Date.now() - cache.at))
+  return { n: cache.stock, nextIn, opened: cache.boosters_opened, ready: true }
 }
 
-// Hook : stock à jour (se rafraîchit toutes les secondes et après chaque ouverture)
+// Hook : stock à jour (compte à rebours local, resynchro serveur quand un booster revient)
 export function useStock() {
-  const [stock, setStock] = useState(getStock)
+  const [stock, setStock] = useState(compute)
   useEffect(() => {
-    const update = () => setStock(getStock())
-    const t = setInterval(update, 1000)
+    const update = () => setStock(compute())
     window.addEventListener(EVENT, update)
+    if (!cache) refreshStock()
+    const t = setInterval(() => {
+      const s = compute()
+      if (s.ready && s.nextIn === 0) refreshStock()
+      setStock(s)
+    }, 1000)
     return () => { clearInterval(t); window.removeEventListener(EVENT, update) }
   }, [])
   return stock
 }
 
 export const formatTime = (ms) => {
-  const s = Math.ceil(ms / 1000)
+  const s = Math.ceil((ms || 0) / 1000)
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }

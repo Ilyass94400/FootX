@@ -1,28 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../supabase'
 import { getBorderColor, RARITIES, RARITY_LABEL } from '../lib/rarity'
-import { useStock, spendStock, addStock, formatTime, MAX_STOCK } from '../lib/boosterStock'
+import { useStock, setStockFromServer, formatTime, MAX_STOCK } from '../lib/boosterStock'
 import PlayerCard from '../components/PlayerCard'
 import './boosters.css'
 
 const RANK = { commune: 1, atypique: 2, rare: 3, epique: 4, legendaire: 5, iconique: 6 }
 const rank = (c) => RANK[c.rarity?.toLowerCase()] || 0
-const pick = (arr) => arr[Math.floor(Math.random() * arr.length)]
-
-// Charge tout le catalogue une fois (par paquets de 1000, limite Supabase)
-// -> les tirages se font ensuite en local, donc 100 boosters s'ouvrent instantanément
-async function loadCatalogue() {
-  const { count } = await supabase.from('cards').select('*', { count: 'exact', head: true })
-  const pages = Math.ceil((count || 0) / 1000)
-  const res = await Promise.all(
-    Array.from({ length: pages }, (_, i) => supabase.from('cards').select('*').range(i * 1000, i * 1000 + 999))
-  )
-  return res.flatMap((r) => r.data || [])
-}
 
 function Boosters() {
-  const [catalogue, setCatalogue] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  const [newIds, setNewIds] = useState(new Set())
   const [pulledCards, setPulledCards] = useState([])
   const [openedCount, setOpenedCount] = useState(1)
   const [step, setStep] = useState('idle')
@@ -32,55 +21,25 @@ function Boosters() {
   const [quick, setQuick] = useState(() => localStorage.getItem('footx_quick') === '1')
   const stock = useStock()
 
-  // Compteur de Pity sauvegardé dans le navigateur
-  const [boosterCount, setBoosterCount] = useState(() => {
-    const saved = localStorage.getItem('footx_booster_count')
-    return saved ? parseInt(saved) : 0
-  })
-
-  useEffect(() => {
-    loadCatalogue().then((cards) => { setCatalogue(cards); setLoading(false) })
-  }, [])
-
   useEffect(() => { localStorage.setItem('footx_quick', quick ? '1' : '0') }, [quick])
-
-  // Pools de tirage par palier de garantie
-  const pools = useMemo(() => {
-    const by = (min) => catalogue.filter((c) => rank(c) >= min)
-    return { any: catalogue, rare_plus: by(3), epic_plus: by(4), iconic: by(6) }
-  }, [catalogue])
 
   const maxQty = Math.min(MAX_STOCK, stock.n)
   const q = Math.max(1, Math.min(qty, maxQty || 1))
 
-  const pullSingleCard = (tier) => {
-    const pool = pools[tier]?.length ? pools[tier] : pools.any
-    return pick(pool)
-  }
+  // Le tirage est fait par Supabase (fonction open_boosters) : stock, pity et collection
+  // sont vérifiés et enregistrés côté serveur, impossible de tricher depuis le navigateur.
+  const buyBooster = async () => {
+    if (step !== 'idle' || busy || stock.n < 1) return
+    setBusy(true)
+    setError(null)
+    const { data, error } = await supabase.rpc('open_boosters', { qty: q })
+    setBusy(false)
+    if (error) { setError(error.message); return }
 
-  // Un booster = 9 cartes aléatoires + 1 garantie selon la Pity
-  const openOne = (countAfter) => {
-    let guaranteedTier = 'rare_plus' // 1 rare minimum
-    if (countAfter % 200 === 0) guaranteedTier = 'iconic' // tous les 200
-    else if (countAfter % 10 === 0) guaranteedTier = 'epic_plus' // tous les 10
-    const cards = []
-    for (let i = 0; i < 9; i++) cards.push(pullSingleCard('any'))
-    cards.push(pullSingleCard(guaranteedTier))
-    return cards
-  }
-
-  const buyBooster = () => {
-    if (!catalogue.length || step !== 'idle' || stock.n < 1) return
-    if (!spendStock(q)) return
-
-    const all = []
-    for (let i = 1; i <= q; i++) all.push(...openOne(boosterCount + i))
-    const newCount = boosterCount + q
-    setBoosterCount(newCount)
-    localStorage.setItem('footx_booster_count', newCount.toString())
-
-    all.sort((a, b) => rank(b) - rank(a))
-    setPulledCards(all)
+    setStockFromServer(data)
+    const cards = [...data.cards].sort((a, b) => rank(b) - rank(a))
+    setNewIds(new Set((data.new_ids || []).map(String)))
+    setPulledCards(cards)
     setOpenedCount(q)
     setStep(quick ? 'cards_revealed' : 'pack_ready')
   }
@@ -121,7 +80,7 @@ function Boosters() {
 
   return (
     <div className={'boosters-page ' + (step === 'opening' ? 'screen-shake' : '')}>
-      <PityBar count={boosterCount} />
+      <PityBar count={stock.opened} />
 
       {(step === 'opening' || step === 'walkout') && (
         <div className="flash-overlay" style={{ '--rarity-color': getBestRarityColor() }}></div>
@@ -147,9 +106,6 @@ function Boosters() {
             <div className="stock-line">
               <span><b>{stock.n}</b> booster{stock.n > 1 ? 's' : ''} dispo</span>
               {stock.nextIn !== null && <small>+1 dans {formatTime(stock.nextIn)}</small>}
-              {import.meta.env.DEV && (
-                <button className="link" onClick={() => addStock(10)} title="Visible seulement en dev">+10 (test)</button>
-              )}
             </div>
 
             {stock.n > 0 ? (
@@ -181,10 +137,13 @@ function Boosters() {
                   Ouverture rapide <small>(sans animation)</small>
                 </label>
 
-                <button className="btn open-btn" onClick={buyBooster} disabled={loading}>
-                  {loading ? 'Chargement…' : q > 1 ? `Ouvrir ${q} boosters` : 'Ouvrir le booster'}
+                <button className="btn open-btn" onClick={buyBooster} disabled={busy}>
+                  {busy ? 'Ouverture…' : q > 1 ? `Ouvrir ${q} boosters` : 'Ouvrir le booster'}
                 </button>
+                {error && <p className="open-error">{error}</p>}
               </>
+            ) : !stock.ready ? (
+              <p className="muted">Chargement de ton stock…</p>
             ) : (
               <p className="muted">Plus de boosters. Le prochain arrive dans {formatTime(stock.nextIn)}.</p>
             )}
@@ -235,15 +194,15 @@ function Boosters() {
 
       {step === 'cards_revealed' && (
         openedCount === 1
-          ? <SingleResult cards={pulledCards} color={getBestRarityColor()} onAgain={resetBooster} />
-          : <MultiResult cards={pulledCards} boosters={openedCount} onAgain={resetBooster} />
+          ? <SingleResult cards={pulledCards} newIds={newIds} color={getBestRarityColor()} onAgain={resetBooster} />
+          : <MultiResult cards={pulledCards} newIds={newIds} boosters={openedCount} onAgain={resetBooster} />
       )}
     </div>
   )
 }
 
 // Résultat d'un seul booster : les 10 cartes avec l'animation de retournement
-function SingleResult({ cards, color, onAgain }) {
+function SingleResult({ cards, newIds, color, onAgain }) {
   const legendary = ['iconique', 'legendaire'].includes(cards[0].rarity?.toLowerCase())
   return (
     <div className="result">
@@ -269,6 +228,7 @@ function SingleResult({ cards, color, onAgain }) {
                   position: 'relative', overflow: 'hidden',
                 }}
               >
+                {newIds.has(String(card.id)) && <span className="new-badge">Nouveau</span>}
                 <h4 style={{ margin: '5px 0', fontSize: isBestCard ? '15px' : '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {card.name}
                 </h4>
@@ -295,7 +255,7 @@ function SingleResult({ cards, color, onAgain }) {
 }
 
 // Résultat de plusieurs boosters : récap par rareté + cartes regroupées (×2, ×3…)
-function MultiResult({ cards, boosters, onAgain }) {
+function MultiResult({ cards, newIds, boosters, onAgain }) {
   const [filter, setFilter] = useState('all')
 
   const counts = useMemo(() => {
@@ -319,7 +279,10 @@ function MultiResult({ cards, boosters, onAgain }) {
   return (
     <div className="result">
       <div className="result-head">
-        <h2>{boosters} boosters · {cards.length} cartes</h2>
+        <div>
+          <h2>{boosters} boosters · {cards.length} cartes</h2>
+          <span className="muted">{newIds.size} nouvelle{newIds.size > 1 ? 's' : ''} dans ta collection</span>
+        </div>
         <button className="btn" onClick={onAgain}>Rouvrir</button>
       </div>
 
@@ -345,6 +308,7 @@ function MultiResult({ cards, boosters, onAgain }) {
           <div key={g.card.id} className="multi-card" style={{ animationDelay: `${Math.min(i, 40) * 0.03}s` }}>
             <PlayerCard card={g.card} />
             {g.n > 1 && <span className="dup">×{g.n}</span>}
+            {newIds.has(String(g.card.id)) && <span className="new-badge">Nouveau</span>}
           </div>
         ))}
       </div>
