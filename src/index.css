@@ -1,111 +1,62 @@
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  --bg: #121311;
+  --bg-2: #0d0e0c;
+  --surface: #1a1b18;
+  --surface-2: #23241f;
+  --border: #2e2f2a;
+  --text: #ecebe3;
+  --muted: #8e8d84;
+  --accent: #e4ff3c;      /* jaune fluo, genre chasuble d'entraînement */
+  --accent-ink: #121311;
+  --gold: #f2c230;
+  --discord: #5865f2;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  --r-commune: #a4b0be;
+  --r-atypique: #2ed573;
+  --r-rare: #1e90ff;
+  --r-epique: #9c88ff;
+  --r-legendaire: #ffa502;
+  --r-iconique: #ffffff;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
+  --title: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+  font-family: 'Barlow', system-ui, sans-serif;
+  color-scheme: dark;
   color: var(--text);
   background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
+* { box-sizing: border-box; }
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
-}
+body { margin: 0; min-height: 100vh; background: var(--bg); }
 
-body {
-  margin: 0;
-}
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; }
+h1, h2, h3, h4, p { margin: 0; }
+h1, h2, h3 { font-family: var(--title); font-weight: 800; text-transform: uppercase; letter-spacing: .5px; }
 
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-}
+/* ---------- Bordure animée des Iconiques ---------- */
+@property --a { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+@keyframes iconicSpin { to { --a: 360deg; } }
+@keyframes iconicGlow { 50% { box-shadow: 0 0 18px rgba(255, 236, 160, .45); } }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+.iconic-border {
+  border-color: transparent !important;
+  background:
+    linear-gradient(#0f1015, #0f1015) padding-box,
+    conic-gradient(from var(--a), #ffffff, #ffe27a, #7ad7ff, #c58bff, #ff8bd1, #ffffff) border-box !important;
 }
-
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
+.pcard.iconic {
+  border-color: transparent;
+  background:
+    linear-gradient(var(--surface), var(--surface)) padding-box,
+    conic-gradient(from var(--a), #ffffff, #ffe27a, #7ad7ff, #c58bff, #ff8bd1, #ffffff) border-box;
+  animation: iconicSpin 3s linear infinite, iconicGlow 2.4s ease-in-out infinite;
 }
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
+.pcard.iconic .pcard-rarity {
+  background: linear-gradient(90deg, #fff, #ffe27a, #7ad7ff, #c58bff, #fff);
+  background-size: 200% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: shine 3s linear infinite;
 }
-p {
-  margin: 0;
-}
-
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
-
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
-}
+@keyframes shine { to { background-position: 200% 0; } }
