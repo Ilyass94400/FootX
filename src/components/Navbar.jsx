@@ -7,6 +7,8 @@ export const NAV = [
   { id: 'accueil', label: 'Accueil' },
   { id: 'boosters', label: 'Boosters' },
   { id: 'collection', label: 'Ma collection' },
+  { id: 'team', label: 'Mon équipe' },
+  { id: 'match', label: 'Match' },
   { id: 'marche', label: 'Le marché' },
   { id: 'classement', label: 'Classement' },
 ]

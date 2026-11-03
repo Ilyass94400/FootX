@@ -8,6 +8,8 @@ import Boosters from './pages/Boosters'
 import Collection from './pages/Collection'
 import Marche from './pages/Marche'
 import Classement from './pages/Classement'
+import Match from './pages/Match'
+import Team from './pages/Team'
 import ComingSoon from './pages/ComingSoon'
 
 const PAGES = {
@@ -16,6 +18,8 @@ const PAGES = {
   collection: Collection,
   marche: Marche,
   classement: Classement,
+  match: Match,
+  team: Team,
 }
 
 // Connexion Discord obligatoire. Pour la couper en local : VITE_DISCORD_AUTH=false dans .env

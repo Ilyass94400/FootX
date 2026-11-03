@@ -1,0 +1,100 @@
+/* Ouverture de booster premium — réutilise les tokens de index.css (--accent, --r-*, --title). */
+
+.pack-stage { position: relative; min-height: calc(100vh - 160px); display: flex; flex-direction: column;
+  align-items: center; justify-content: center; overflow: hidden; border-radius: 16px;
+  background: radial-gradient(130% 90% at 50% -10%, #1c1e16 0%, var(--bg-2, #0d0e0c) 46%, var(--bg) 100%); }
+.pack-particles { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.pack-stage.shake { animation: pkShake .6s cubic-bezier(.36,.07,.19,.97); }
+@keyframes pkShake { 0%,100%{transform:translate(0,0)} 10%{transform:translate(-9px,5px)} 20%{transform:translate(8px,-6px)} 30%{transform:translate(-7px,-4px)} 40%{transform:translate(7px,5px)} 50%{transform:translate(-5px,3px)} 60%{transform:translate(5px,-3px)} 70%{transform:translate(-3px,2px)} 80%{transform:translate(3px,-2px)} 90%{transform:translate(-1px,1px)} }
+.pack-flash { position: fixed; inset: 0; z-index: 60; background: #fff; opacity: 0; pointer-events: none; }
+.pack-flash.go { animation: pkFlash .7s ease-out forwards; }
+@keyframes pkFlash { 0%{opacity:0} 18%{opacity:.9} 100%{opacity:0} }
+
+/* ---- PACK ---- */
+.pack-wrap { position: relative; z-index: 3; display: flex; flex-direction: column; align-items: center; gap: 24px; perspective: 1200px; }
+.pack { position: relative; width: min(70vw,300px); aspect-ratio: 3/4.3; border-radius: 20px; transform-style: preserve-3d;
+  background: linear-gradient(160deg,#23251d 0%,#14150f 60%,#0e0f0a 100%); border: 2px solid var(--rc); cursor: pointer;
+  box-shadow: 0 30px 60px rgba(0,0,0,.7), inset 0 0 0 1px rgba(255,255,255,.04), 0 0 48px -10px var(--rc);
+  transition: transform .3s cubic-bezier(.22,1,.36,1), box-shadow .3s;
+  display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 26px 20px; overflow: hidden; }
+.pack.idle { animation: pkFloat 3.4s ease-in-out infinite; }
+@keyframes pkFloat { 0%,100%{transform:translateY(0) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg))} 50%{transform:translateY(-16px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg))} }
+.pack.tilt { animation: none; transform: translateY(-6px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg)) scale(1.02); }
+.pack .foil { position: absolute; inset: 0; z-index: 2; pointer-events: none; mix-blend-mode: color-dodge; opacity: .5;
+  background: radial-gradient(180px 180px at var(--mx,50%) var(--my,30%), rgba(255,255,255,.5), transparent 60%),
+    conic-gradient(from calc(var(--ry,0deg)*6) at var(--mx,50%) var(--my,50%), #ff2d7533,#ffd93333,#2effc133,#2d9bff33,#c58bff33,#ff2d7533); }
+.pack .seam { position: absolute; top: 0; left: 50%; width: 2px; height: 0; background: linear-gradient(#fff,var(--rc)); transform: translateX(-50%); box-shadow: 0 0 18px 3px var(--rc); opacity: 0; z-index: 3; }
+.pack .logo { position: relative; z-index: 1; text-align: center; }
+.pack .logo .ball { font-size: 54px; filter: drop-shadow(0 6px 12px rgba(0,0,0,.6)); }
+.pack .logo h2 { font-size: 30px; letter-spacing: 3px; margin: 6px 0 0; font-family: var(--title); font-weight: 900; }
+.pack .logo p { margin: 2px 0 0; font-size: 11px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; }
+.pack .tier { position: relative; z-index: 1; font-family: var(--title); font-weight: 800; font-size: 13px; letter-spacing: 2px; color: var(--rc); border: 1px solid var(--rc); border-radius: 6px; padding: 5px 14px; text-transform: uppercase; }
+.pack .edge { position: absolute; top: 0; left: 0; right: 0; height: 46px; background: linear-gradient(var(--rc),transparent); opacity: .18; z-index: 1; }
+.pack.charging { animation: pkCharge .9s ease-in both; }
+@keyframes pkCharge { 0%{transform:scale(1)} 30%{transform:scale(.97) rotate(-1deg)} 60%{transform:scale(1.02) rotate(1.5deg)} 100%{transform:scale(1.05);filter:brightness(1.5)} }
+.pack.charging .seam { animation: pkSeam .9s ease-in forwards; }
+@keyframes pkSeam { 0%{height:0;opacity:0} 40%{opacity:1} 100%{height:100%;opacity:1} }
+.pack.tearing { animation: pkTear .6s cubic-bezier(.5,0,.75,0) forwards; }
+@keyframes pkTear { 0%{transform:scale(1.05);filter:brightness(1.6)} 40%{transform:scale(1.15) rotate(2deg);filter:brightness(3)} 100%{transform:scale(1.9);opacity:0;filter:brightness(12)} }
+.tap-hint { font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: var(--rc); font-weight: 700; animation: pkHint 1.6s ease-in-out infinite; }
+@keyframes pkHint { 0%,100%{opacity:.5} 50%{opacity:1} }
+
+.burst { position: absolute; z-index: 4; left: 50%; top: 50%; transform: translate(-50%,-50%); pointer-events: none; }
+.burst .ring { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); border-radius: 50%; border: 3px solid var(--rc); width: 40px; height: 40px; animation: pkRing .7s ease-out forwards; }
+@keyframes pkRing { 0%{width:40px;height:40px;opacity:.95;border-width:8px} 100%{width:min(90vw,760px);height:min(90vw,760px);opacity:0;border-width:1px} }
+
+/* ---- WALKOUT ---- */
+.walkout { position: absolute; inset: 0; z-index: 12; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; cursor: pointer; overflow: hidden; }
+.godrays { position: absolute; left: 50%; top: 50%; width: 160vmax; height: 160vmax; transform: translate(-50%,-50%); z-index: 0; pointer-events: none; opacity: .5;
+  background: conic-gradient(from var(--a,0deg), transparent 0 6deg, color-mix(in srgb, var(--rc) 55%, transparent) 6deg 9deg, transparent 9deg 18deg);
+  animation: pkRays 18s linear infinite; mask: radial-gradient(circle, transparent 8%, #000 60%); -webkit-mask: radial-gradient(circle, transparent 8%, #000 60%); }
+@keyframes pkRays { to { --a: 360deg; } }
+.walkout .wtext { position: relative; z-index: 2; font-family: var(--title); font-weight: 900; text-transform: uppercase; letter-spacing: 6px; margin: 6px 0;
+  text-shadow: 0 10px 36px rgba(0,0,0,.85), 0 0 42px var(--rc); animation: pkSlam .45s cubic-bezier(.175,.885,.32,1.275) both; }
+@keyframes pkSlam { 0%{transform:scale(2.6);opacity:0;filter:blur(12px)} 55%{transform:scale(.92);opacity:1;filter:blur(0)} 100%{transform:scale(1)} }
+.walkout .skip { position: absolute; bottom: 26px; z-index: 3; font-size: 11px; letter-spacing: 2px; color: var(--muted); background: none; border: none; cursor: pointer; }
+
+/* ---- REVEAL ---- */
+.reveal { position: relative; z-index: 3; width: 100%; max-width: 1040px; padding: 0 16px; margin: 0 auto; }
+.reveal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+.reveal-head h2 { font-size: clamp(24px,5vw,34px); font-family: var(--title); font-weight: 800; text-transform: uppercase; }
+.grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 12px; }
+@media (max-width:760px){ .grid{ grid-template-columns: repeat(3,1fr);} }
+@media (max-width:460px){ .grid{ grid-template-columns: repeat(2,1fr);} }
+
+.slot { perspective: 900px; }
+.fcard { position: relative; aspect-ratio: 3/4.1; border-radius: 14px; transform-style: preserve-3d; cursor: pointer; opacity: 0;
+  animation: pkFlipIn .75s cubic-bezier(.175,.885,.32,1.275) forwards; transition: transform .25s cubic-bezier(.22,1,.36,1), box-shadow .25s; }
+@keyframes pkFlipIn { 0%{opacity:0;transform:rotateY(180deg) translateY(60px) scale(.7);filter:blur(4px)} 60%{opacity:1;transform:rotateY(-12deg) translateY(-10px) scale(1.05);filter:blur(0)} 100%{opacity:1;transform:rotateY(0) translateY(0) scale(1)} }
+.fcard.tilt { animation: none; opacity: 1; }
+.fcard-face { position: absolute; inset: 0; border-radius: 14px; overflow: hidden; border: 2px solid var(--cc);
+  background: linear-gradient(165deg,#20221b,#111209); box-shadow: 0 16px 30px rgba(0,0,0,.6), 0 0 22px -8px var(--cc);
+  display: flex; flex-direction: column; transform: rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg)); }
+.fcard .top { display: flex; justify-content: space-between; align-items: flex-start; padding: 8px 10px 0; }
+.fcard .rating { font-family: var(--title); font-weight: 900; line-height: .82; color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,.7); }
+.fcard .rating b { font-size: 26px; display: block; }
+.fcard .rating span { font-size: 10px; letter-spacing: 1px; color: var(--cc); }
+.fcard .crest { flex: 1; position: relative; display: grid; place-items: center; overflow: hidden;
+  background: radial-gradient(70% 60% at 50% 30%, color-mix(in srgb, var(--cc) 40%, transparent), transparent 70%); }
+.fcard .crest img { width: 100%; height: 100%; object-fit: cover; }
+.fcard .crest .ic { font-size: clamp(34px,8vw,54px); filter: drop-shadow(0 6px 10px rgba(0,0,0,.5)); }
+.fcard .meta { padding: 6px 10px 9px; background: linear-gradient(#14150e,#0e0f09); border-top: 1px solid rgba(255,255,255,.05); }
+.fcard .meta .nm { font-family: var(--title); font-weight: 800; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fcard .meta .cl { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fcard .rar { position: absolute; bottom: 40px; right: 8px; z-index: 4; font-size: 8px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--cc); color: var(--cc); background: rgba(0,0,0,.55); }
+.fcard .foil { position: absolute; inset: 0; z-index: 3; pointer-events: none; mix-blend-mode: color-dodge; opacity: 0; transition: opacity .25s;
+  background: radial-gradient(120px 120px at var(--mx,50%) var(--my,30%), rgba(255,255,255,.6), transparent 60%),
+    repeating-linear-gradient(115deg, transparent 0 8px, color-mix(in srgb, var(--cc) 40%, transparent) 9px 10px); }
+.fcard:hover { transform: translateY(-10px) scale(1.06); z-index: 9; box-shadow: 0 26px 48px rgba(0,0,0,.75), 0 0 34px -6px var(--cc); }
+.fcard:hover .foil, .fcard.tilt .foil { opacity: .85; }
+/* iconique : bord conique animé (cf. ton index.css @property --a) */
+.fcard.iconique .fcard-face { border-color: transparent;
+  background: linear-gradient(#111209,#111209) padding-box, conic-gradient(from var(--a,0deg),#fff,#ffe27a,#7ad7ff,#c58bff,#ff8bd1,#fff) border-box;
+  animation: pkBorder 4s linear infinite; }
+@keyframes pkBorder { to { --a: 360deg; } }
+
+.pack-stage .btn { padding: 11px 22px; font-family: var(--title); font-weight: 900; font-size: 17px; letter-spacing: 1.5px; border: none; border-radius: 12px; cursor: pointer; transition: transform .12s; }
+.pack-stage .btn.primary { color: var(--accent-ink); background: var(--accent); box-shadow: 0 10px 26px -8px var(--accent); }
+.pack-stage .btn.primary:hover { transform: translateY(-2px); }
+
+@media (prefers-reduced-motion: reduce) { .pack-stage *, .pack-stage { animation-duration: .01ms !important; animation-iteration-count: 1 !important; } }

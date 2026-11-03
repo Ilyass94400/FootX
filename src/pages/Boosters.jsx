@@ -3,6 +3,8 @@ import { supabase } from '../supabase'
 import { getBorderColor, RARITIES, RARITY_LABEL } from '../lib/rarity'
 import { useStock, spendStock, addStock, formatTime, MAX_STOCK } from '../lib/boosterStock'
 import PlayerCard from '../components/PlayerCard'
+import PackOpening from '../components/PackOpening'
+import BoosterPack from '../components/BoosterPack'
 import './boosters.css'
 
 const RANK = { commune: 1, atypique: 2, rare: 3, epique: 4, legendaire: 5, iconique: 6 }
@@ -26,6 +28,7 @@ function Boosters() {
   const [pulledCards, setPulledCards] = useState([])
   const [openedCount, setOpenedCount] = useState(1)
   const [step, setStep] = useState('idle')
+  const [openId, setOpenId] = useState(0) // change à chaque ouverture -> PackOpening repart à zéro
   const [walkoutStep, setWalkoutStep] = useState('none')
 
   const [qty, setQty] = useState(1)
@@ -50,7 +53,7 @@ function Boosters() {
     return { any: catalogue, rare_plus: by(3), epic_plus: by(4), iconic: by(6) }
   }, [catalogue])
 
-  const maxQty = Math.min(MAX_STOCK, stock.n)
+  const maxQty = Math.min(10, MAX_STOCK, stock.n)
   const q = Math.max(1, Math.min(qty, maxQty || 1))
 
   const pullSingleCard = (tier) => {
@@ -70,7 +73,8 @@ function Boosters() {
   }
 
   const buyBooster = () => {
-    if (!catalogue.length || step !== 'idle' || stock.n < 1) return
+    // autorisé depuis l'écran d'accueil OU depuis le récap ("Ouvrir un autre")
+    if (!catalogue.length || (step !== 'idle' && step !== 'premium') || stock.n < 1) return
     if (!spendStock(q)) return
 
     const all = []
@@ -82,7 +86,9 @@ function Boosters() {
     all.sort((a, b) => rank(b) - rank(a))
     setPulledCards(all)
     setOpenedCount(q)
-    setStep(quick ? 'cards_revealed' : 'pack_ready')
+    // ouverture premium carte par carte (1 ou plusieurs packs)
+    setOpenId((n) => n + 1)
+    setStep('premium')
   }
 
   const clickToOpen = () => {
@@ -129,18 +135,17 @@ function Boosters() {
 
       {step === 'idle' && (
         <div className="open-zone">
+          {/* Vitrine : le même booster que dans l'ouverture (pile derrière si ×5 / ×10) */}
           <div
-            className={'booster-card-ui ' + (stock.n > 0 ? 'booster-idle' : 'booster-empty')}
+            className={'pk-showcase' + (stock.n > 0 ? '' : ' empty')}
             onClick={buyBooster}
-            style={{ '--rarity-color': '#e4ff3c' }}
+            onKeyDown={(e) => { if (e.key === 'Enter') buyBooster() }}
+            role="button" tabIndex={0}
+            aria-label={q > 1 ? `Ouvrir ${q} boosters` : 'Ouvrir le booster'}
           >
-            <div style={{ fontSize: '12px', letterSpacing: '2px', color: '#888', textTransform: 'uppercase' }}>FootX Series</div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '60px', marginBottom: '10px' }}>⚽</div>
-              <h2 style={{ margin: '0 0 5px 0', fontSize: '28px', letterSpacing: '2px' }}>FOOTX</h2>
-              <p style={{ margin: 0, fontSize: '12px', color: '#777' }}>Édition Top 5 Ligues</p>
-            </div>
-            <div className="booster-qty-badge">{q > 1 ? `× ${q}` : '10 cartes'}</div>
+            {q >= 5 && <BoosterPack packs={q} idle className="pile p2" />}
+            {q >= 2 && <BoosterPack packs={q} idle className="pile p1" />}
+            <div className="pk-float"><BoosterPack packs={q} idle /></div>
           </div>
 
           <div className="open-panel">
@@ -190,6 +195,19 @@ function Boosters() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Ouverture premium d'un seul booster */}
+      {step === 'premium' && (
+        <PackOpening
+          key={openId}
+          cards={pulledCards}
+          quick={quick}
+          packs={openedCount}
+          stockLeft={stock.n}
+          onAgain={resetBooster}
+          onOpenAnother={buyBooster}
+        />
       )}
 
       {(step === 'pack_ready' || step === 'opening') && (
