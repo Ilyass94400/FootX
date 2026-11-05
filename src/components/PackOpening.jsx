@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { getBorderColor, RARITY_LABEL } from '../lib/rarity'
 import FoilCard from './FoilCard'
 import PackFx from './PackFx'
@@ -215,13 +216,15 @@ export default function PackOpening({ cards, quick = false, onAgain, onOpenAnoth
   const skipR = skipIdx >= 0 ? order[skipIdx].rarity : null
   const remaining = N - st.idx - 1
 
-  return (
+  // Plein écran : l'ouverture est rendue directement dans <body>, par-dessus la navigation.
+  return createPortal(
     <div
       ref={stageRef}
       className={'pk-stage' + (iconicStage ? ' iconic' : '') + (phase === 'done' ? ' done' : '')}
       style={{ '--cc': stageColor }}
     >
       <PackFx ref={fx} ambient={iconicStage ? '#ffffff' : stageColor} />
+      <StageBar onClose={onAgain} />
       <div className="pk-floor" />
 
       {/* ---------- 1-3. Pack, montée de rareté, émergence ---------- */}
@@ -326,6 +329,48 @@ export default function PackOpening({ cards, quick = false, onAgain, onOpenAnoth
       {/* ---------- 5. Récap ---------- */}
       {phase === 'done' && (
         <Recap order={order} onAgain={onAgain} onOpenAnother={onOpenAnother} stockLeft={stockLeft} />
+      )}
+    </div>,
+    document.body,
+  )
+}
+
+// Barre du haut en plein écran : vrai plein écran navigateur + retour aux boosters.
+// Bloque aussi le défilement de la page pendant l'ouverture.
+function StageBar({ onClose }) {
+  const [fs, setFs] = useState(() => !!document.fullscreenElement)
+  useEffect(() => {
+    const html = document.documentElement
+    html.classList.add('pk-lock')
+    const on = () => setFs(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', on)
+    return () => { html.classList.remove('pk-lock'); document.removeEventListener('fullscreenchange', on) }
+  }, [])
+  const toggle = (e) => {
+    e.stopPropagation()
+    try {
+      if (document.fullscreenElement) document.exitFullscreen?.()
+      else document.documentElement.requestFullscreen?.().catch(() => {})
+    } catch { /* plein écran indisponible */ }
+  }
+  const close = (e) => {
+    e.stopPropagation()
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {})
+    onClose?.()
+  }
+  return (
+    <div className="pk-topbar">
+      {document.documentElement.requestFullscreen && (
+        <button className="pk-topbtn" onClick={toggle} aria-label={fs ? 'Quitter le plein écran' : 'Plein écran'}>
+          <svg viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true">
+            <path d={fs ? 'M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5' : 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5'} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      )}
+      {onClose && (
+        <button className="pk-topbtn" onClick={close} aria-label="Retour aux boosters">
+          <svg viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" /></svg>
+        </button>
       )}
     </div>
   )

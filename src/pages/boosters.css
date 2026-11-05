@@ -77,7 +77,7 @@
 .boosters-page { position: relative; overflow: hidden; padding-bottom: 40px; }
 
 .pity-bar {
-  display: grid; grid-template-columns: 1fr 1fr auto; gap: 20px; align-items: center;
+  display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 20px; align-items: center;
   background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
   padding: 14px 18px; margin-bottom: 20px; font-size: 13px; color: var(--muted);
 }
@@ -136,3 +136,41 @@
 .dup { position: absolute; top: -8px; right: -8px; background: var(--accent); color: var(--accent-ink); font-family: var(--title); font-weight: 800; font-size: 15px; padding: 1px 7px; border-radius: 3px; box-shadow: 2px 2px 0 #000; }
 
 @media (max-width: 700px) { .open-zone { gap: 28px; } .open-panel { width: 100%; } }
+
+/* Boutique : achat d'un booster en X-Coins */
+.shop-buy { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 46px; margin-bottom: 14px; border-radius: 12px; cursor: pointer;
+  background: linear-gradient(180deg, rgba(245, 197, 66, .16), rgba(245, 197, 66, .05)); border: 1px solid rgba(245, 197, 66, .45); color: #fff3cf; font-weight: 700; font-size: 14.5px; transition: transform .15s, box-shadow .25s, background .25s; }
+.shop-buy b { font-family: var(--title); font-size: 18px; color: #f5c542; }
+.shop-buy:hover:not(:disabled) { box-shadow: 0 0 24px -6px rgba(245, 197, 66, .7); transform: translateY(-1px); }
+.shop-buy:active:not(:disabled) { transform: scale(.98); }
+.shop-buy.confirm { background: #f5c542; color: #0b0c08; animation: shop-pulse .6s ease-in-out infinite alternate; }
+.shop-buy.done { background: rgba(46, 213, 115, .16); border-color: #2ed573; color: #b8ffcf; }
+.shop-buy.error { background: rgba(255, 77, 94, .14); border-color: #ff4d5e; color: #ffc2c8; }
+.shop-buy:disabled { opacity: .5; cursor: not-allowed; }
+.shop-coin { font-size: 22px; }
+@keyframes shop-pulse { to { transform: scale(1.02); } }
+
+/* Taux de drop */
+.rates-btn { height: 30px; padding: 0 12px; border-radius: 8px; cursor: pointer; font-weight: 800; font-size: 12px; letter-spacing: .04em; text-transform: uppercase;
+  background: none; color: var(--text); border: 1px solid var(--border); transition: border-color .2s, background .2s; white-space: nowrap; }
+.rates-btn:hover, .rates-btn.on { border-color: var(--gold); color: var(--gold); }
+.rates { position: relative; z-index: 3; margin: -8px 0 20px; padding: 18px 20px; border-radius: 14px; background: var(--surface); border: 1px solid rgba(242, 194, 48, .35);
+  animation: rates-in .3s cubic-bezier(.2, 1.2, .4, 1); }
+@keyframes rates-in { from { opacity: 0; transform: translateY(-8px); } }
+.rates-head { display: flex; justify-content: space-between; align-items: center; }
+.rates-head h3 { font-size: 22px; }
+.rates-sub { color: var(--muted); font-size: 13px; margin: 4px 0 14px; }
+.rates-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; }
+.rates h4 { font-family: var(--title); font-weight: 800; font-size: 15px; text-transform: uppercase; letter-spacing: .05em; margin: 0 0 8px; }
+.rates h4 small { font-family: 'Barlow', sans-serif; font-size: 12px; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--muted); }
+.rate-row { display: grid; grid-template-columns: 92px 1fr 64px; align-items: center; gap: 10px; padding: 5px 0; font-size: 13.5px; }
+.rate-row span { color: var(--c); font-weight: 800; }
+.rate-row i { height: 6px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.rate-row i b { display: block; height: 100%; border-radius: 99px; background: var(--c); box-shadow: 0 0 8px var(--c); }
+.rate-row em { font-style: normal; text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text); }
+.rates-pity { margin: 14px 0 0; padding: 12px 0 0 18px; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; line-height: 1.6; }
+.rates-pity b { color: var(--text); }
+@media (max-width: 700px) {
+  .rates-cols { grid-template-columns: 1fr; gap: 14px; }
+  .rates-btn { justify-self: start; }
+}

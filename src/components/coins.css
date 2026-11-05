@@ -1,0 +1,54 @@
+/* ============================================================================
+   X-Coins : compteur du header (cc-) + pièces volantes.
+   ============================================================================ */
+.cc-wallet {
+  --gold: #f5c542;
+  position: relative; display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px 0 7px; border-radius: 99px; cursor: pointer;
+  background: linear-gradient(180deg, rgba(245, 197, 66, .14), rgba(245, 197, 66, .04)); border: 1px solid rgba(245, 197, 66, .35); color: #fff3cf;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08); transition: border-color .3s, box-shadow .3s, transform .15s;
+}
+.cc-wallet:hover { border-color: rgba(245, 197, 66, .7); box-shadow: 0 0 22px -6px rgba(245, 197, 66, .6); }
+.cc-wallet:active { transform: scale(.96); }
+.cc-wallet.up { border-color: #2ed573; box-shadow: 0 0 26px -4px rgba(46, 213, 115, .75); }
+.cc-wallet.down { border-color: #ff4d5e; box-shadow: 0 0 26px -6px rgba(255, 77, 94, .7); }
+.cc-wallet.cc-hit { animation: cc-hit .5s cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes cc-hit { 30% { transform: scale(1.14); } }
+.cc-coin { font-size: 25px; flex: none; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .5)); }
+.cc-coin.spin { animation: cc-spin .9s cubic-bezier(.2, .8, .3, 1); }
+@keyframes cc-spin { from { transform: rotateY(0); } to { transform: rotateY(720deg); } }
+
+.cc-odo { display: inline-flex; align-items: center; height: 1em; font-family: var(--title, 'Barlow Condensed', sans-serif); font-weight: 900; font-size: 21px; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: .01em; }
+.cc-col { display: inline-block; height: 1em; overflow: hidden; width: .56em; text-align: center; }
+.cc-strip { display: flex; flex-direction: column; transition: transform .95s cubic-bezier(.2, .9, .15, 1); will-change: transform; }
+.cc-strip > span { height: 1em; display: block; }
+.cc-sep { display: inline-block; width: .18em; }
+.cc-wallet.up .cc-odo { color: #b8ffcf; }
+.cc-wallet.down .cc-odo { color: #ffc2c8; }
+
+.cc-delta { position: absolute; top: calc(100% + 4px); right: 8px; z-index: 60; pointer-events: none; white-space: nowrap;
+  font-family: var(--title, 'Barlow Condensed', sans-serif); font-weight: 900; font-size: 17px; padding: 2px 9px; border-radius: 99px;
+  animation: cc-delta 1.7s cubic-bezier(.2, 1.1, .3, 1) forwards; }
+.cc-delta.up { color: #0b0c08; background: #2ed573; box-shadow: 0 6px 20px -4px rgba(46, 213, 115, .8); }
+.cc-delta.down { color: #fff; background: #ff4d5e; box-shadow: 0 6px 20px -4px rgba(255, 77, 94, .8); }
+@keyframes cc-delta { 0% { opacity: 0; transform: translateY(-14px) scale(.6); } 15% { opacity: 1; transform: translateY(0) scale(1.1); } 75% { opacity: 1; transform: translateY(4px) scale(1); } 100% { opacity: 0; transform: translateY(14px); } }
+
+/* pièces qui volent vers le compteur */
+.cc-fly { position: fixed; z-index: 2000; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle at 35% 30%, #fff6c2, #f5c542 45%, #a8740f); box-shadow: 0 0 12px rgba(245, 197, 66, .8), inset 0 -2px 0 rgba(0, 0, 0, .25);
+  animation: cc-fly 1.05s cubic-bezier(.5, 0, .6, 1) both; }
+@keyframes cc-fly {
+  0% { transform: translate(0, 0) scale(.4); opacity: 0; }
+  12% { opacity: 1; transform: translate(calc(var(--sx) * .5), calc(var(--sy) * .5)) scale(1.1); }
+  35% { transform: translate(var(--sx), var(--sy)) scale(1); }
+  100% { transform: translate(var(--dx), var(--dy)) scale(.5); opacity: .9; }
+}
+
+@media (max-width: 520px) {
+  .cc-wallet { height: 34px; padding: 0 10px 0 5px; gap: 6px; }
+  .cc-odo { font-size: 18px; }
+  .cc-coin { font-size: 22px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cc-strip { transition: none; }
+  .cc-coin.spin, .cc-wallet.cc-hit { animation: none; }
+}

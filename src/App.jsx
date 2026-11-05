@@ -1,9 +1,11 @@
 import './App.css'
+import './transitions.css'
 import { useSession } from './lib/useSession'
 import { useRoute } from './lib/useRoute'
 import Navbar from './components/Navbar'
 import Login from './pages/Login'
-import Home from './pages/Home'
+import Hub from './pages/Hub'
+import League from './pages/League'
 import Boosters from './pages/Boosters'
 import Collection from './pages/Collection'
 import Marche from './pages/Marche'
@@ -13,7 +15,8 @@ import Team from './pages/Team'
 import ComingSoon from './pages/ComingSoon'
 
 const PAGES = {
-  accueil: Home,
+  accueil: Hub,
+  ligue: League,
   boosters: Boosters,
   collection: Collection,
   marche: Marche,
@@ -45,7 +48,10 @@ function App() {
     <div className="app">
       <Navbar session={session} route={route} />
       <main className="page">
-        <Page session={session} route={route} />
+        {/* key = route : chaque écran rejoue son entrée (transition fluide, zéro écran blanc) */}
+        <div className="route-view" key={route}>
+          <Page session={session} route={route} />
+        </div>
       </main>
       <footer className="footer">FootX — projet perso, aucun lien avec les clubs ou les ligues.</footer>
     </div>

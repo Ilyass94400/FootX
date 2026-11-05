@@ -1,0 +1,30 @@
+/* ============================================================================
+   Transitions globales : entrée de page + voile "warp" entre les modes.
+   ============================================================================ */
+
+/* chaque page entre en douceur (zéro écran blanc, zéro saut) */
+.route-view { animation: route-in .42s cubic-bezier(.2, .8, .25, 1) backwards; /* backwards : aucun transform résiduel (sinon les overlays position:fixed seraient décalés) */ }
+@keyframes route-in {
+  from { opacity: 0; transform: translateY(10px) scale(.992); filter: blur(4px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+
+.warp {
+  position: fixed; inset: 0; z-index: 1000; pointer-events: none; display: grid; place-items: center;
+  clip-path: circle(0 at var(--wx) var(--wy));
+  background:
+    radial-gradient(circle at var(--wx) var(--wy), color-mix(in srgb, var(--wc) 85%, #fff) 0, var(--wc) 12%, color-mix(in srgb, var(--wc) 35%, #050505) 46%, #050505 80%);
+  transition: clip-path .43s cubic-bezier(.7, 0, .3, 1);
+}
+.warp.in { clip-path: circle(150vmax at var(--wx) var(--wy)); }
+.warp.out { opacity: 0; transform: scale(1.04); transition: opacity .5s ease, transform .5s ease; clip-path: circle(150vmax at var(--wx) var(--wy)); }
+.warp-label {
+  font-family: var(--title, 'Barlow Condensed', sans-serif); font-weight: 900; font-style: italic; text-transform: uppercase;
+  font-size: clamp(40px, 9vw, 120px); letter-spacing: .02em; color: #fff; text-shadow: 0 0 40px var(--wc), 0 8px 30px rgba(0, 0, 0, .6);
+  opacity: 0; transform: scale(1.3); transition: opacity .25s .18s, transform .45s .18s cubic-bezier(.2, 1.4, .4, 1);
+}
+.warp.in .warp-label { opacity: 1; transform: scale(1); }
+
+@media (prefers-reduced-motion: reduce) {
+  .route-view { animation: none; }
+}

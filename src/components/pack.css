@@ -7,13 +7,13 @@
 
 .pk-stage {
   --brand: #e4ff3c;
-  --cw: min(58vw, 262px);          /* largeur de carte */
-  --ph: min(86.4vw, 340px);        /* hauteur du pack */
+  --cw: min(58vw, 34vh, 300px);    /* largeur de carte (grandit avec l'écran) */
+  --ph: min(86.4vw, 50vh, 400px);  /* hauteur du pack */
   --muted2: #6f716a;
-  position: relative; isolation: isolate; overflow: hidden;
-  min-height: max(660px, calc(100vh - 170px));
-  border-radius: 18px; border: 1px solid #1b1d17;
-  background: #07080a;
+  /* plein écran : toute la fenêtre, par-dessus la navigation (rendu via portail dans <body>) */
+  position: fixed; inset: 0; z-index: 900; isolation: isolate; overflow: hidden;
+  width: 100vw; height: 100vh; height: 100dvh;
+  background: #07080a; color: #ecebe3; font-family: 'Barlow', system-ui, sans-serif;
   transition: --cc .5s ease;
   user-select: none; -webkit-user-select: none;
 }
@@ -464,8 +464,17 @@
 .cb-cnr.bl { bottom: 15px; left: 15px; } .cb-cnr.br { bottom: 15px; right: 15px; }
 
 /* ============================== RÉCAP ============================== */
-.pk-stage.done { display: block; }
-.pk-recap { position: relative; z-index: 4; width: 100%; max-width: 1080px; margin: 0 auto; padding: 26px 20px 30px; animation: fadeIn .5s both; }
+.pk-stage.done { display: block; overflow-y: auto; overscroll-behavior: contain; }
+
+/* ---------- plein écran ---------- */
+html.pk-lock, html.pk-lock body { overflow: hidden; }
+.pk-topbar { position: absolute; z-index: 40; top: max(14px, env(safe-area-inset-top, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); display: flex; gap: 8px; }
+.pk-stage.done .pk-topbar { position: fixed; }
+.pk-topbtn { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; cursor: pointer; font-size: 20px; color: #cfcec4;
+  background: rgba(6, 8, 10, .6); border: 1px solid rgba(255, 255, 255, .12); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); transition: color .2s, border-color .2s, transform .15s; }
+.pk-topbtn:hover { color: #fff; border-color: rgba(255, 255, 255, .32); }
+.pk-topbtn:active { transform: scale(.94); }
+.pk-recap { position: relative; z-index: 4; width: 100%; max-width: 1180px; margin: 0 auto; padding: 72px max(20px, env(safe-area-inset-left, 0px)) 48px; animation: fadeIn .5s both; }
 .rc-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .rc-kicker { font-size: 11px; font-weight: 800; letter-spacing: .22em; text-transform: uppercase; color: var(--muted2); }
 .rc-head h2 { margin-top: 6px; font-size: clamp(26px, 5vw, 40px); line-height: 1; }
@@ -548,7 +557,7 @@
   .pk-btn.primary { min-width: 0; }
   .pk-btn.skip .long { display: none; }
   .wo-val { font-size: clamp(34px, 11vw, 60px); }
-  .pk-recap { padding: 18px 14px 24px; }
+  .pk-recap { padding: 66px 14px 28px; }
   .pk-recap .pk-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .pk-btn.big { font-size: 16px; padding: 12px 18px; }
 }

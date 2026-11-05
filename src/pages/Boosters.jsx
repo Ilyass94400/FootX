@@ -5,6 +5,12 @@ import { useStock, spendStock, addStock, formatTime, MAX_STOCK } from '../lib/bo
 import PlayerCard from '../components/PlayerCard'
 import PackOpening from '../components/PackOpening'
 import BoosterPack from '../components/BoosterPack'
+import { eco } from '../lib/economy'
+import { ECONOMY, fmtCoins } from '../lib/economy/config'
+import { spendSound } from '../lib/economy/fx'
+import { useWallet } from '../lib/economy'
+import { CoinIcon } from '../components/CoinCounter'
+import { rollPack, makePicker, loadPity, savePity, FEATURED_RATES, FILLER_RATES, PITY, PACK_SIZE, effectiveRate } from '../lib/drops'
 import './boosters.css'
 
 const RANK = { commune: 1, atypique: 2, rare: 3, epique: 4, legendaire: 5, iconique: 6 }
@@ -47,29 +53,17 @@ function Boosters() {
 
   useEffect(() => { localStorage.setItem('footx_quick', quick ? '1' : '0') }, [quick])
 
-  // Pools de tirage par palier de garantie
-  const pools = useMemo(() => {
-    const by = (min) => catalogue.filter((c) => rank(c) >= min)
-    return { any: catalogue, rare_plus: by(3), epic_plus: by(4), iconic: by(6) }
-  }, [catalogue])
+  // Pity : boosters ouverts depuis la dernière Iconique / la dernière Épique+
+  const [pity, setPity] = useState(loadPity)
+  const pickCard = useMemo(() => makePicker(catalogue), [catalogue])
 
   const maxQty = Math.min(10, MAX_STOCK, stock.n)
   const q = Math.max(1, Math.min(qty, maxQty || 1))
 
-  const pullSingleCard = (tier) => {
-    const pool = pools[tier]?.length ? pools[tier] : pools.any
-    return pick(pool)
-  }
-
-  // Un booster = 9 cartes aléatoires + 1 garantie selon la Pity
-  const openOne = (countAfter) => {
-    let guaranteedTier = 'rare_plus' // 1 rare minimum
-    if (countAfter % 200 === 0) guaranteedTier = 'iconic' // tous les 200
-    else if (countAfter % 10 === 0) guaranteedTier = 'epic_plus' // tous les 10
-    const cards = []
-    for (let i = 0; i < 9; i++) cards.push(pullSingleCard('any'))
-    cards.push(pullSingleCard(guaranteedTier))
-    return cards
+  // Un booster = 1 carte vedette (taux de drop + pity) + 9 cartes de complément (voir lib/drops.js)
+  const openOne = (p) => {
+    const r = rollPack(p)
+    return { cards: r.rarities.map(pickCard), pity: r.pity }
   }
 
   const buyBooster = () => {
@@ -78,12 +72,20 @@ function Boosters() {
     if (!spendStock(q)) return
 
     const all = []
-    for (let i = 1; i <= q; i++) all.push(...openOne(boosterCount + i))
+    let p = pity
+    for (let i = 1; i <= q; i++) {
+      const o = openOne(p)
+      all.push(...o.cards)
+      p = o.pity
+    }
+    setPity(p)
+    savePity(p)
     const newCount = boosterCount + q
     setBoosterCount(newCount)
     localStorage.setItem('footx_booster_count', newCount.toString())
 
     all.sort((a, b) => rank(b) - rank(a))
+    eco.addCards(all, 'pack') // les cartes tirées rejoignent le club (vendables sur le marché)
     setPulledCards(all)
     setOpenedCount(q)
     // ouverture premium carte par carte (1 ou plusieurs packs)
@@ -127,7 +129,7 @@ function Boosters() {
 
   return (
     <div className={'boosters-page ' + (step === 'opening' ? 'screen-shake' : '')}>
-      <PityBar count={boosterCount} />
+      <PityBar count={boosterCount} pity={pity} />
 
       {(step === 'opening' || step === 'walkout') && (
         <div className="flash-overlay" style={{ '--rarity-color': getBestRarityColor() }}></div>
@@ -149,8 +151,9 @@ function Boosters() {
           </div>
 
           <div className="open-panel">
+            <BuyWithCoins />
             <div className="stock-line">
-              <span><b>{stock.n}</b> booster{stock.n > 1 ? 's' : ''} dispo</span>
+              <span><b>{stock.n}</b>/{MAX_STOCK} booster{stock.n > 1 ? 's' : ''} dispo</span>
               {stock.nextIn !== null && <small>+1 dans {formatTime(stock.nextIn)}</small>}
               {import.meta.env.DEV && (
                 <button className="link" onClick={() => addStock(10)} title="Visible seulement en dev">+10 (test)</button>
@@ -370,25 +373,104 @@ function MultiResult({ cards, boosters, onAgain }) {
   )
 }
 
-// Barre de progression de la pity (Épique+ tous les 10, Iconique tous les 200)
-function PityBar({ count }) {
-  const epic = count % 10
-  const iconic = count % 200
+// Barre de progression de la pity + tableau des taux de drop
+function PityBar({ count, pity }) {
+  const [open, setOpen] = useState(false)
+  const epic = pity.sinceEpic
+  const iconic = pity.sinceIconic
   return (
-    <div className="pity-bar">
-      <div>
-        <span>Épique+ garantie</span>
-        <div className="bar"><i style={{ width: (epic / 10) * 100 + '%', background: 'var(--r-epique)' }} /></div>
-        <small>{epic}/10</small>
+    <>
+      <div className="pity-bar">
+        <div>
+          <span>Épique+ garantie</span>
+          <div className="bar"><i style={{ width: (epic / PITY.epicPlus) * 100 + '%', background: 'var(--r-epique)' }} /></div>
+          <small>{epic}/{PITY.epicPlus}</small>
+        </div>
+        <div>
+          <span>Iconique garantie</span>
+          <div className="bar"><i style={{ width: (iconic / PITY.iconique) * 100 + '%', background: 'var(--gold)' }} /></div>
+          <small>{iconic}/{PITY.iconique}</small>
+        </div>
+        <div className="pity-total">{count} ouverts</div>
+        <button className={'rates-btn' + (open ? ' on' : '')} onClick={() => setOpen(!open)} aria-expanded={open}>Taux de drop</button>
       </div>
-      <div>
-        <span>Iconique garantie</span>
-        <div className="bar"><i style={{ width: (iconic / 200) * 100 + '%', background: 'var(--gold)' }} /></div>
-        <small>{iconic}/200</small>
+      {open && <DropRates onClose={() => setOpen(false)} />}
+    </>
+  )
+}
+
+const pct = (x) => (x * 100).toLocaleString('fr-FR', { maximumFractionDigits: 2 }) + ' %'
+function DropRates({ onClose }) {
+  const ico = FEATURED_RATES.find(([r]) => r === 'iconique')[1]
+  const epicPlus = FEATURED_RATES.filter(([r]) => ['epique', 'legendaire', 'iconique'].includes(r)).reduce((a, [, p]) => a + p, 0)
+  return (
+    <div className="rates">
+      <div className="rates-head">
+        <h3>Taux de drop</h3>
+        <button className="link" onClick={onClose}>fermer</button>
       </div>
-      <div className="pity-total">{count} ouverts</div>
+      <p className="rates-sub">Chaque booster contient {PACK_SIZE} cartes : 1 carte vedette et {PACK_SIZE - 1} cartes de complément.</p>
+      <div className="rates-cols">
+        <div>
+          <h4>Carte vedette <small>= chance par booster</small></h4>
+          {[...FEATURED_RATES].reverse().map(([r, p]) => (
+            <div key={r} className="rate-row" style={{ '--c': getBorderColor(r) }}>
+              <span>{RARITY_LABEL[r]}</span><i><b style={{ width: Math.max(1.5, p * 100) + '%' }} /></i><em>{pct(p)}</em>
+            </div>
+          ))}
+        </div>
+        <div>
+          <h4>{PACK_SIZE - 1} cartes de complément</h4>
+          {[...FILLER_RATES].reverse().map(([r, p]) => (
+            <div key={r} className="rate-row" style={{ '--c': getBorderColor(r) }}>
+              <span>{RARITY_LABEL[r]}</span><i><b style={{ width: p * 100 + '%' }} /></i><em>{pct(p)}</em>
+            </div>
+          ))}
+        </div>
+      </div>
+      <ul className="rates-pity">
+        <li><b>Iconique garantie</b> au {PITY.iconique}e booster sans Iconique. Avec cette garantie, le taux réel est d'environ {pct(effectiveRate(ico, PITY.iconique))} par booster.</li>
+        <li><b>Épique ou mieux garantie</b> au {PITY.epicPlus}e booster sans Épique+ (taux de base : {pct(epicPlus)} par booster).</li>
+        <li>Les compteurs repartent à zéro dès que tu obtiens la carte.</li>
+      </ul>
     </div>
   )
 }
 
 export default Boosters
+
+// Boutique : acheter un booster avec des X-Coins (débit validé par le "serveur" d'économie).
+function BuyWithCoins() {
+  const { balance } = useWallet()
+  const stock = useStock()
+  const full = stock.n >= MAX_STOCK
+  const [state, setState] = useState('idle') // idle | confirm | busy | done | error
+  const [msg, setMsg] = useState('')
+  const price = ECONOMY.boosterPrice
+  const can = (balance ?? 0) >= price && !full
+  useEffect(() => {
+    if (state !== 'confirm' && state !== 'done' && state !== 'error') return
+    const t = setTimeout(() => setState('idle'), 2600)
+    return () => clearTimeout(t)
+  }, [state])
+  const buy = async () => {
+    if (state !== 'confirm') { setState('confirm'); return }
+    setState('busy')
+    try {
+      await eco.buyBoosters(1, 'b' + Date.now())
+      addStock(1)
+      spendSound()
+      setState('done')
+    } catch (e) { setMsg(e.message); setState('error') }
+  }
+  return (
+    <button className={'shop-buy ' + state} onClick={buy} disabled={!can || state === 'busy'} title={full ? `Stock plein (${MAX_STOCK} max)` : can ? '' : 'Pas assez de X-Coins'}>
+      <CoinIcon className="shop-coin" />
+      {state === 'confirm' ? `Confirmer : ${fmtCoins(price)} X-Coins ?`
+        : state === 'done' ? '+1 booster ajouté !'
+          : state === 'error' ? msg
+            : full ? `Stock plein · ${MAX_STOCK}/${MAX_STOCK} boosters`
+              : <>Acheter 1 booster · <b>{fmtCoins(price)}</b></>}
+    </button>
+  )
+}

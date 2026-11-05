@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 
 // Stock de boosters du joueur (sauvegardé dans le navigateur pour l'instant).
-// 1 booster revient toutes les 10 min, jusqu'à 100 max. Un nouveau joueur commence avec 20.
-export const MAX_STOCK = 100
-export const START_STOCK = 20
+// 1 booster revient toutes les 10 min, jusqu'à 10 max. Un nouveau joueur commence avec 10.
+// Au-delà de 10, rien ne s'accumule : il faut ouvrir pour refaire de la place.
+export const MAX_STOCK = 10
+export const START_STOCK = 10
 export const REGEN_MS = 10 * 60 * 1000
 
 const KEY = 'footx_stock'
@@ -21,6 +22,7 @@ const save = (s) => {
 export function getStock() {
   const now = Date.now()
   let s = read() || { n: START_STOCK, t: now }
+  if (s.n > MAX_STOCK) s = { n: MAX_STOCK, t: now } // ancien stock (limite à 100) ramené à 10
   if (s.n >= MAX_STOCK) {
     s = { n: MAX_STOCK, t: now }
   } else {
@@ -43,10 +45,15 @@ export function spendStock(k) {
   return true
 }
 
+// Ajoute des boosters sans dépasser la limite. Renvoie le nombre réellement ajouté.
 export function addStock(k) {
   const cur = getStock()
-  save({ n: Math.min(MAX_STOCK, cur.n + k), t: read().t })
+  const added = Math.max(0, Math.min(k, MAX_STOCK - cur.n))
+  save({ n: cur.n + added, t: cur.n + added >= MAX_STOCK ? Date.now() : read().t })
+  return added
 }
+
+export const stockFull = () => getStock().n >= MAX_STOCK
 
 // Hook : stock à jour (se rafraîchit toutes les secondes et après chaque ouverture)
 export function useStock() {

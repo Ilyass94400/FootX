@@ -2,14 +2,20 @@ import { useState } from 'react'
 import { go } from '../lib/useRoute'
 import { getDiscordProfile, signOut } from '../lib/useSession'
 import { useStock } from '../lib/boosterStock'
+import CoinCounter from './CoinCounter'
 
 export const NAV = [
   { id: 'accueil', label: 'Accueil' },
+  { id: 'match', label: 'Arène' },
+  { id: 'ligue', label: 'Ma Ligue' },
   { id: 'boosters', label: 'Boosters' },
-  { id: 'collection', label: 'Ma collection' },
   { id: 'team', label: 'Mon équipe' },
-  { id: 'match', label: 'Match' },
-  { id: 'marche', label: 'Le marché' },
+  { id: 'marche', label: 'Marché' },
+  { id: 'collection', label: 'Collection' },
+]
+
+// Pages existantes mais secondaires : seulement dans le menu
+const EXTRA = [
   { id: 'classement', label: 'Classement' },
 ]
 
@@ -41,6 +47,7 @@ export default function Navbar({ session, route }) {
         </nav>
 
         <div className="nav-right">
+          <CoinCounter onClick={() => go('marche')} />
           <a className="nav-count" href="#/boosters" title="Boosters disponibles">{stock.n} <small>boosters</small></a>
           <button className="nav-user" onClick={() => setOpen(!open)} aria-label="Menu">
             {avatar ? <img src={avatar} alt="" /> : <span className="avatar">{name[0]}</span>}
@@ -62,7 +69,7 @@ export default function Navbar({ session, route }) {
               {!session.guest && <button className="link" onClick={signOut}>déconnexion</button>}
             </div>
             <div className="menu-list">
-              {[...NAV, ...MORE].map((n) => (
+              {[...NAV, ...EXTRA, ...MORE].map((n) => (
                 <button key={n.id} onClick={() => nav(n.id)} className={route === n.id ? 'active' : ''}>
                   {n.label}
                   {MORE.includes(n) && <em>bientôt</em>}
