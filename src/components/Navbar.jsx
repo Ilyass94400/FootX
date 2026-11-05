@@ -5,13 +5,15 @@ import { useStock } from '../lib/boosterStock'
 import CoinCounter from './CoinCounter'
 import QuestToaster from './QuestToaster'
 import { usePendingQuests } from '../lib/quests'
+import { useCareer } from '../lib/career'
 
 export const NAV = [
   { id: 'accueil', label: 'Accueil' },
   { id: 'match', label: 'Arène' },
-  { id: 'ligue', label: 'Ma Ligue' },
+  { id: 'ligue', label: 'Ligue' },
+  { id: 'carriere', label: 'Carrière' },
   { id: 'boosters', label: 'Boosters' },
-  { id: 'team', label: 'Mon équipe' },
+  { id: 'team', label: 'Équipe' },
   { id: 'marche', label: 'Marché' },
   { id: 'defis', label: 'Défis' },
 ]
@@ -33,6 +35,8 @@ export default function Navbar({ session, route }) {
   const { name, avatar } = getDiscordProfile(session)
   const stock = useStock()
   const pending = usePendingQuests() // récompenses de défis à récupérer → point rouge
+  const career = useCareer()
+  const mail = career?.unread || 0 // lettres non lues (Mode Carrière)
 
   const nav = (id) => { setOpen(false); go(id) }
 
@@ -43,9 +47,10 @@ export default function Navbar({ session, route }) {
 
         <nav className="nav-links">
           {NAV.map((n) => (
-            <a key={n.id} href={'#/' + n.id} className={(route === n.id ? 'active' : '') + (n.id === 'defis' && pending ? ' has-badge' : '')}>
+            <a key={n.id} href={'#/' + n.id} className={(route === n.id || (n.id === 'carriere' && route.startsWith('carriere')) ? 'active' : '') + ((n.id === 'defis' && pending) || (n.id === 'carriere' && mail) ? ' has-badge' : '')}>
               {n.label}
               {n.id === 'defis' && pending > 0 && <i className="nav-badge" aria-label={`${pending} récompense${pending > 1 ? 's' : ''} à récupérer`}>{pending}</i>}
+              {n.id === 'carriere' && mail > 0 && <i className="nav-badge" aria-label={`${mail} lettre${mail > 1 ? 's' : ''} non lue${mail > 1 ? 's' : ''}`}>{mail}</i>}
             </a>
           ))}
         </nav>

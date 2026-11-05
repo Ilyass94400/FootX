@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
 
 // Mini routeur par hash (#/boosters, #/collection...) : pas de dépendance en plus.
-const read = () => window.location.hash.replace(/^#\/?/, '') || 'accueil'
+// Un hash technique laissé par la connexion (#access_token=…, #error=…) n'est pas une page.
+const read = () => {
+  const r = window.location.hash.replace(/^#\/?/, '')
+  return !r || /^(access_token|error|code|refresh_token)=/.test(r) || r.includes('=') ? 'accueil' : r
+}
 
 export function useRoute() {
   const [route, setRoute] = useState(read)

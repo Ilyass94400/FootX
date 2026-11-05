@@ -7,7 +7,10 @@ const TEAM_KEY = 'footx_team'
 export function loadSavedTeam() {
   try {
     const t = JSON.parse(localStorage.getItem(TEAM_KEY))
-    return t && typeof t === 'object' ? { ...emptyTeam(), ...t } : null
+    if (!t || typeof t !== 'object') return null
+    // l'ancienne carte "Légende" ne joue plus en multijoueur (elle vit dans le Mode Carrière)
+    for (const k of Object.keys(t)) if (t[k]?.legend) t[k] = null
+    return { ...emptyTeam(), ...t }
   } catch {
     return null
   }

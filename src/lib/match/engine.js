@@ -41,7 +41,7 @@ export const SCENARIOS = {
 }
 export const MINUTES = [9, 24, 38, 53, 69, 86]
 export const TOTAL_ACTIONS = MINUTES.length
-export const TIMING = { kickoff: 2600, intro: 1400, clash: 1900, outcome: 2300, goal: 3000, shootout: 2400 }
+export const TIMING = { kickoff: 2600, intro: 1400, clash: 1900, outcome: 2300, goal: 3000, shootout: 2400, ultimate: 2600 }
 const QV = { perfect: 2, good: 1, miss: -1.2 }
 
 const other = (side) => (side === 'me' ? 'opp' : 'me')
@@ -57,18 +57,21 @@ function rand(s) {
 }
 
 // ---------- Création ----------
-export function initMatch({ me, opp, names = { me: 'Mon équipe', opp: 'Rival FC' }, seed, level = 0.55 } = {}) {
+// focus : id de la carte que le joueur incarne (Mode Carrière) → elle prend la plupart des actions clés
+// meta  : données libres renvoyées telles quelles (ex. le match de carrière en cours)
+export function initMatch({ me, opp, names = { me: 'Mon équipe', opp: 'Rival FC' }, seed, level = 0.55, focus = null, meta = null } = {}) {
   const sd = (seed ?? (Date.now() ^ Math.floor(Math.random() * 1e9))) | 0
   const s = {
     phase: 'kickoff', idx: 0, seed: sd, rng: sd,
-    teams: { me, opp }, names,
+    teams: { me, opp }, names, focus, meta,
     collectif: { me: computeCollectif(me).collectif, opp: computeCollectif(opp).collectif },
     chem: { me: chemByCardId(me), opp: chemByCardId(opp) }, // collectif individuel 0..3 par carte
     score: { me: 0, opp: 0 }, pens: { me: 0, opp: 0 }, shootout: null,
     momentum: 0, // -100 (adversaire) … +100 (toi)
     stamina: { me: {}, opp: {} },
     history: [], current: null, winner: null,
-    stats: { reads: 0, actions: 0, perfect: 0, goals: 0, saves: 0, hesitations: 0 },
+    stats: { reads: 0, actions: 0, perfect: 0, goals: 0, saves: 0, hesitations: 0, ultimates: 0 },
+    ultUsed: {}, // Capacités Ultimes de la Légende déjà utilisées (1 fois par match chacune)
     mvp: {},
     ai: null,
   }
@@ -142,6 +145,11 @@ function pickAttacker(s, side) {
   }
   const cand = ['A1', 'A2', 'D1', 'D2'].map((k) => t[k]).filter(Boolean)
   if (!cand.length) return t.GK
+  // Mode Carrière : ton joueur prend la majorité des actions clés de ton équipe
+  if (side === 'me' && s.focus) {
+    const f = cand.find((c) => c.id === s.focus)
+    if (f && rand(s) < 0.65) return f
+  }
   const weights = cand.map((c, i) => (i < 2 ? 3 : 1) * (0.35 + (s.stamina[side][c.id] ?? 100) / 100))
   let r = rand(s) * weights.reduce((a, b) => a + b, 0)
   for (let i = 0; i < cand.length; i++) { r -= weights[i]; if (r <= 0) return cand[i] }
@@ -176,6 +184,18 @@ function newAction(s) {
   s.phase = 'intro'
 }
 
+// Capacité Ultime disponible pour MOI sur l'action en cours (ou null).
+//   attaque : ma Légende doit être le tireur ; défense : ma Légende doit être sur le terrain.
+export function ultimateReady(s) {
+  const c = s?.current
+  if (!c || s.phase !== 'choose' || c.choices.me) return null
+  const used = s.ultUsed || {}
+  const legend = c.side === 'me' ? (c.attacker?.legend ? c.attacker : null) : Object.values(s.teams.me).find((x) => x?.legend)
+  if (!legend) return null
+  const side = c.side === 'me' ? 'atk' : 'def'
+  return (legend.ultimates || []).find((u) => u.side === side && !used[u.id]) || null
+}
+
 // Collectif 0..3 d'une carte (1 par défaut si inconnu, ex. ancienne sauvegarde).
 export const chemOf = (s, side, card) => s.chem?.[side]?.[card?.id] ?? 1
 
@@ -189,7 +209,8 @@ function resolveClash(s) {
   const sc = SCENARIOS[c.scenario]
   const atkT = getTraits(c.attacker)
   const gkT = getTraits(c.keeper)
-  const read = readOf(a, d)
+  const ult = c.ultimate // Capacité Ultime : la lecture est forcément gagnée par ma Légende
+  const read = ult ? (atk === 'me' ? 1 : -1) : readOf(a, d)
 
   let adv = read * 1.6 // la LECTURE pèse le plus lourd
   adv += clamp((cardRating(c.attacker) - cardRating(c.keeper)) / 12, -1, 1) * 0.8 // stats des cartes
@@ -211,6 +232,7 @@ function resolveClash(s) {
   if (tired) adv -= 0.75
   if (c.hesitated[atk]) adv -= 1
   if (c.hesitated[def]) adv += 1
+  if (ult) adv += atk === 'me' ? 1.2 : -1.2
   adv = clamp(adv, -3, 3)
 
   // QTE du joueur humain : en attaque c'est sa frappe, en défense son réflexe.
@@ -224,8 +246,9 @@ function resolveClash(s) {
   if (atk === 'opp' && myT.includes('reflexes')) zone += 0.05
   if (theirT.includes('mur') || theirT.includes('sangfroid')) zone -= 0.03
   zone *= CHEM_EFFECT[atk === 'me' ? chemA : chemK].zone // collectif parfait = zone verte plus large
-  zone = clamp(zone, 0.09, 0.45)
-  const period = clamp(1100 - myAdv * 90, 720, 1400) // mauvais avantage = curseur plus rapide
+  if (ult) zone *= 1.35 // zone de réussite élargie
+  zone = clamp(zone, 0.09, ult ? 0.55 : 0.45)
+  const period = clamp(1100 - myAdv * 90, 720, 1400) + (ult ? 120 : 0) // mauvais avantage = curseur plus rapide
   const center = 0.28 + rand(s) * 0.44
 
   if (!sc.free) s.stamina[atk][c.attacker.id] = Math.max(0, stamina - ATTACK[a].cost)
@@ -297,7 +320,8 @@ function finish(s, myQ, timeout) {
     bump(c.keeper, kind === 'save' ? 2 : 1)
   }
 
-  s.history = [...s.history, { side: atk, attack: c.choices[atk], defend: c.choices[def], read: c.read, kind, myQ,
+  if (c.ultimate) s.stats.ultimates++
+  s.history = [...s.history, { side: atk, attack: c.choices[atk], defend: c.choices[def], read: c.read, kind, myQ, ultimate: c.ultimate?.id || null,
     scorer: kind === 'goal' ? { id: c.attacker.id, name: c.attacker.name, country: c.attacker.country, club: c.attacker.club } : null }]
   c.result = { kind, myQ, aiQ, shooterQ, keeperQ, timeout: !!timeout }
   s.phase = 'outcome'
@@ -360,7 +384,13 @@ export function matchReducer(state, action) {
     case 'LOCK': {
       if (state.phase !== 'choose' || state.current.choices[action.who]) return state
       const s = draft(state)
-      s.current.choices[action.who] = action.choice
+      const ult = action.who === 'me' && action.ultimate ? ultimateReady(state) : null
+      if (action.ultimate && !ult) return state
+      if (ult) {
+        s.current.ultimate = ult
+        s.ultUsed = { ...state.ultUsed, [ult.id]: true }
+      }
+      s.current.choices[action.who] = ult ? ult.move : action.choice
       s.current.hesitated[action.who] = !!action.hesitated
       if (s.current.choices.me && s.current.choices.opp) resolveClash(s)
       return s

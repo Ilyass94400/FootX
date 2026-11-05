@@ -14,11 +14,27 @@ export function useSession() {
   return session
 }
 
+// Retour vers l'adresse ACTUELLE du site (localhost en dev, ton domaine Vercel en prod).
+// Cette adresse doit figurer dans Supabase > Authentication > URL Configuration > Redirect URLs,
+// sinon Supabase renvoie vers la "Site URL" (souvent restée sur localhost).
 export function signInWithDiscord() {
   return supabase.auth.signInWithOAuth({
     provider: 'discord',
-    options: { redirectTo: window.location.origin },
+    options: { redirectTo: window.location.origin + '/' },
   })
+}
+
+// Erreur renvoyée dans l'adresse après un aller-retour Discord/Supabase
+// (?error=…&error_description=… ou #error=…). Lue une seule fois, puis l'adresse est nettoyée.
+let urlError
+export function readAuthError() {
+  if (urlError !== undefined) return urlError
+  const q = new URLSearchParams(window.location.search)
+  const h = new URLSearchParams(window.location.hash.replace(/^#\/?/, ''))
+  const desc = q.get('error_description') || h.get('error_description') || q.get('error') || h.get('error')
+  urlError = desc || null // URLSearchParams décode déjà (%20, +)
+  if (urlError) window.history.replaceState(null, '', window.location.pathname + '#/accueil')
+  return urlError
 }
 
 export function signOut() {

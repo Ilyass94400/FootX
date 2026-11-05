@@ -4,6 +4,7 @@ import { addStock } from '../boosterStock'
 import { eco } from '../economy'
 import { coinSound } from '../economy/fx'
 import { track } from '../quests'
+import { reportMatch } from '../career'
 
 // ============================================================================
 // Contrôleur de match : orchestre les phases du moteur (pur) avec le temps réel.
@@ -85,7 +86,8 @@ export function useMatchController(makeSetup, opponent = aiOpponent) {
         break
       }
       case 'clash':
-        after(TIMING.clash, () => dispatch({ type: 'START_QTE' }))
+        // Capacité Ultime : l'action se fige le temps de la cinématique
+        after(TIMING.clash + (c.ultimate ? TIMING.ultimate : 0), () => dispatch({ type: 'START_QTE' }))
         break
       case 'qte':
         after(c.qte.period * 2.5 + 250, () => dispatch({ type: 'QTE', q: 'miss', timeout: true }))
@@ -97,6 +99,17 @@ export function useMatchController(makeSetup, opponent = aiOpponent) {
         if (rewarded.current === s.seed) break
         rewarded.current = s.seed
         const win = s.winner === 'me'
+        // Mode Carrière : note du match + XP de ton joueur (pas de pièces ni de boosters : mode solo à part)
+        if (s.meta?.career) {
+          const k = s.meta.career
+          const goals = s.history.filter((h) => h.side === 'me' && h.kind === 'goal' && h.scorer?.id === k.proId).length
+          const r = reportMatch(k.fixtureId, {
+            win, gf: s.score.me, ga: s.score.opp, goals, perfect: s.stats.perfect, reads: s.stats.reads, actions: s.stats.actions,
+            hesitations: s.stats.hesitations, keeper: k.keeper, saves: k.keeper ? s.stats.saves : 0, conceded: s.score.opp,
+          })
+          setReward({ career: r || { done: true }, streak: 0 })
+          break
+        }
         const streak = win ? readNum(STREAK_KEY, 0) + 1 : 0
         writeNum(STREAK_KEY, streak)
         nextLevel(win)
@@ -121,11 +134,12 @@ export function useMatchController(makeSetup, opponent = aiOpponent) {
   }, [s.phase, s.idx]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const choose = useCallback((id) => dispatch({ type: 'LOCK', who: 'me', choice: id }), [])
+  const fireUltimate = useCallback(() => dispatch({ type: 'LOCK', who: 'me', ultimate: true }), [])
   const qte = useCallback((q) => dispatch({ type: 'QTE', q }), [])
   const rematch = useCallback(() => {
     setReward(null)
     dispatch({ type: 'RESET', payload: { ...makeSetup(), level: readNum(LEVEL_KEY, 0.55) } })
   }, [makeSetup])
 
-  return { s, choose, qte, rematch, reward }
+  return { s, choose, fireUltimate, qte, rematch, reward }
 }

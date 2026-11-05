@@ -7,6 +7,8 @@ import { autoFill, SLOTS, computeCollectif, cardRating, roleOf } from '../lib/co
 import { useLeague } from '../lib/league/useLeague'
 import { splitMs } from '../lib/league/scoring'
 import { warpTo } from '../lib/warp'
+import { useCareer } from '../lib/career'
+import { seasonLabel } from '../lib/career/rules'
 import { ANNOUNCEMENTS } from '../data/announcements'
 import HeroCard from '../components/HeroCard'
 import PackFx from '../components/PackFx'
@@ -34,6 +36,7 @@ export default function Hub({ session }) {
   const { name } = getDiscordProfile(session)
   const stock = useStock()
   const lg = useLeague()
+  const career = useCareer()
   const [pool, setPool] = useState([])
 
   useEffect(() => {
@@ -122,6 +125,8 @@ export default function Hub({ session }) {
           hint={stock.n > 0 ? 'Ouvrir maintenant' : 'Recharge en cours'} pack />
         <Tile route="team" color="#7ad7ff" label="Mon équipe" kicker="Collectif" value={hasTeam ? collectif.collectif : '—'}
           hint={hasTeam ? 'Ajuster la compo' : 'Composer mes 5 titulaires'} />
+        <Tile route="carriere" color="#f5c542" label="Mode Carrière" kicker={career ? `Carrière · ${career.clubName}` : 'Mode Carrière'} value={career ? 'Niv ' + career.player.level : 'Solo'}
+          hint={career ? (career.unread ? `${career.unread} lettre${career.unread > 1 ? 's' : ''} non lue${career.unread > 1 ? 's' : ''}` : career.next ? `Prochain match : ${career.next.oppName}` : `Saison ${seasonLabel(career.season)}`) : 'Crée ton joueur et choisis ton club'} />
         <Tile route="collection" color="#c58bff" label="Collection" kicker="Ma collection" value={pool.length ? pool.length + (pool.length >= 200 ? '+' : '') : '—'}
           hint="Voir toutes mes cartes" />
       </div>

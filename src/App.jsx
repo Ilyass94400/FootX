@@ -7,6 +7,7 @@ import Login from './pages/Login'
 import Hub from './pages/Hub'
 import League from './pages/League'
 import Defis from './pages/Defis'
+import Carriere from './pages/Carriere'
 import Boosters from './pages/Boosters'
 import Collection from './pages/Collection'
 import Marche from './pages/Marche'
@@ -19,6 +20,11 @@ const PAGES = {
   accueil: Hub,
   ligue: League,
   defis: Defis,
+  carriere: Carriere,
+  'carriere-arbre': Carriere,
+  'carriere-courrier': Carriere,
+  'carriere-match': Match,
+  vestiaire: Carriere, // ancien lien
   boosters: Boosters,
   collection: Collection,
   marche: Marche,

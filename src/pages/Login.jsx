@@ -23,9 +23,9 @@ export default function Login() {
         <h2>Les règles</h2>
         <ul>
           <li><b>10 cartes</b> par booster, dont au moins une Rare.</li>
-          <li>Tous les <b>10 boosters</b>, une Épique ou mieux est garantie.</li>
-          <li>Tous les <b>200 boosters</b>, une Iconique est garantie.</li>
-          <li>Les doublons pourront être vendus au marché (bientôt).</li>
+          <li>Une Épique ou mieux garantie au plus tard au <b>20e booster</b>.</li>
+          <li>Une Iconique garantie au plus tard au <b>200e booster</b>.</li>
+          <li>Revends tes doublons sur le <b>marché des transferts</b>.</li>
         </ul>
       </section>
     </div>

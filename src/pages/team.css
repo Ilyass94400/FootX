@@ -244,3 +244,4 @@
 @media (prefers-reduced-motion: reduce) {
   .tb-slot-card, .tb-slot.active .tb-slot-empty, .tb-slot.active.filled .tb-slot-card, .tb-link .flow, .tb-link.preview .core, .tb-btn.primary.ready::after, .tb-pop, .tb-flash { animation: none; }
 }
+

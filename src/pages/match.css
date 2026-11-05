@@ -442,3 +442,74 @@ html.mx-lock, html.mx-lock body { overflow: hidden; overscroll-behavior: none; }
 /* récompense X-Coins en fin de match */
 .mx-chip.coins { color: #0b0c08; background: linear-gradient(135deg, #fff6c2, #f5c542 50%, #c9930f); border-color: transparent; font-weight: 900; box-shadow: 0 0 20px -4px rgba(245, 197, 66, .8); animation: mx-coin-chip .6s cubic-bezier(.2, 1.6, .4, 1) both; }
 @keyframes mx-coin-chip { from { transform: scale(.4); opacity: 0; } }
+
+/* ============================================================================
+   Capacité Ultime de la Légende (mode Carrière)
+   ============================================================================ */
+.mx-stage.shake-ult { animation: mx-shake-ult .7s cubic-bezier(.36,.07,.19,.97); }
+@keyframes mx-shake-ult {
+  8% { transform: translate(-16px, 9px) rotate(-1.4deg) scale(1.02); } 16% { transform: translate(18px, -11px) rotate(1.2deg) scale(1.02); }
+  26% { transform: translate(-20px, -7px) rotate(-.8deg); } 36% { transform: translate(15px, 11px) rotate(.8deg); } 48% { transform: translate(-10px, 6px); }
+  60% { transform: translate(7px, -4px); } 74% { transform: translate(-4px, 2px); } 88% { transform: translate(2px, -1px); }
+}
+/* l'écran s'assombrit, seul le duel reste éclairé */
+.mx-stage.ult::before { content: ''; position: absolute; inset: 0; z-index: 21; pointer-events: none;
+  background: radial-gradient(48% 42% at 50% 58%, transparent 30%, color-mix(in srgb, var(--u1) 18%, rgba(0,0,0,.55)) 60%, rgba(0,0,0,.86));
+  animation: mx-ult-dim .4s ease-out both; }
+@keyframes mx-ult-dim { from { opacity: 0; } }
+.mx-stage.ult .mx-sky, .mx-stage.ult .mx-pitch { filter: saturate(.6) brightness(.7); transition: filter .4s; }
+
+/* bouton ULTIME dans le dock de choix */
+.mx-ult { position: relative; overflow: hidden; display: flex; align-items: center; gap: 14px; width: 100%; margin-bottom: 12px; padding: 10px 14px; border-radius: 16px; cursor: pointer; text-align: left; color: #fff;
+  border: 2px solid var(--u1); background: linear-gradient(100deg, color-mix(in srgb, var(--u1) 40%, #0b0c08), #0b0c08 70%);
+  box-shadow: 0 0 0 0 var(--u1), 0 14px 40px -14px var(--u1); animation: mx-ult-call 1s ease-in-out infinite alternate, mx-fadeup .3s both; }
+.mx-ult::before { content: ''; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 30%, color-mix(in srgb, var(--u2) 70%, transparent) 50%, transparent 70%); transform: translateX(-120%); animation: mx-ult-shine 1.6s ease-in-out infinite; pointer-events: none; }
+@keyframes mx-ult-call { to { box-shadow: 0 0 0 4px color-mix(in srgb, var(--u1) 30%, transparent), 0 18px 50px -10px var(--u1); } }
+@keyframes mx-ult-shine { 0%, 40% { transform: translateX(-120%); } 100% { transform: translateX(120%); } }
+.mx-ult:hover { filter: brightness(1.15); }
+.mx-ult:active { transform: scale(.98); }
+.mx-ult-k { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: var(--u1); color: var(--ink); font-family: var(--title-f); font-weight: 900; font-size: 20px; }
+.mx-ult-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mx-ult-t small { font-size: 10.5px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--u2); }
+.mx-ult-t b { font-family: var(--title-f); font-style: italic; font-weight: 900; font-size: 26px; line-height: 1; text-transform: uppercase; text-shadow: 0 0 18px var(--u1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mx-ult-go { flex: none; font-family: var(--title-f); font-weight: 900; font-size: 16px; letter-spacing: .08em; text-transform: uppercase; padding: 8px 14px; border-radius: 10px; color: var(--ink); background: linear-gradient(135deg, #fff, var(--u2) 30%, var(--u1)); }
+.mx-ult.dim { opacity: .35; animation: none; filter: grayscale(.6); }
+.mx-ult.fired { animation: mx-ult-fired .5s cubic-bezier(.2,1.6,.4,1) both; }
+.mx-ult.fired .mx-ult-go { background: #fff; }
+@keyframes mx-ult-fired { 0% { filter: brightness(3); transform: scale(1.04); } 100% { filter: none; transform: none; } }
+
+/* QTE épique : piste incandescente, curseur en feu */
+.mx-qte.epic .mx-qte-title { color: var(--u1); font-style: italic; font-size: clamp(30px, 4.4vw, 44px); text-shadow: 0 0 22px var(--u1), 0 3px 0 #000; }
+.mx-qte.epic .mx-qte-track { border-color: var(--u1); box-shadow: 0 0 30px -6px var(--u1), inset 0 0 24px -6px var(--u1);
+  background: repeating-linear-gradient(90deg, rgba(255,255,255,.06) 0 1px, transparent 1px 10%), linear-gradient(90deg, #1a0d06, color-mix(in srgb, var(--u1) 18%, #110a05), #1a0d06); }
+.mx-qte.epic .mx-qte-zone { border-color: var(--u2); background: linear-gradient(180deg, color-mix(in srgb, var(--u2) 60%, transparent), color-mix(in srgb, var(--u1) 30%, transparent)); box-shadow: 0 0 22px -2px var(--u1); }
+.mx-qte.epic .mx-qte-zone i { background: #fff; box-shadow: 0 0 18px #fff, 0 0 30px var(--u2); }
+.mx-qte.epic .mx-qte-cursor { background: #fff; box-shadow: 0 0 20px var(--u2), 0 0 40px var(--u1); }
+.mx-qte-fire { position: absolute; left: 50%; top: 50%; width: 120px; height: 70px; translate: -50% -50%; pointer-events: none; border-radius: 50%; mix-blend-mode: screen; filter: blur(7px);
+  background: radial-gradient(closest-side, #fff, var(--u2) 25%, var(--u1) 55%, transparent); animation: mx-fire .12s ease-in-out infinite alternate; }
+.mx-qte-fire::before, .mx-qte-fire::after { content: ''; position: absolute; top: 20%; bottom: 20%; width: 140%; border-radius: 99px; background: linear-gradient(90deg, transparent, var(--u1), var(--u2)); opacity: .75; }
+.mx-qte-fire::before { right: 50%; } .mx-qte-fire::after { left: 50%; transform: scaleX(-1); }
+@keyframes mx-fire { from { transform: scale(.9, .8); opacity: .8; } to { transform: scale(1.1, 1.15); opacity: 1; } }
+.mx-qte.epic .mx-hit { background: linear-gradient(135deg, #fff, var(--u2) 30%, var(--u1)); box-shadow: 0 14px 40px -10px var(--u1); }
+
+/* ballon en feu */
+.mx-ball.fire { filter: drop-shadow(0 0 14px var(--u1)) drop-shadow(0 0 30px var(--u2)) brightness(1.3); }
+.mx-ball.fire.ghost { filter: blur(3px) drop-shadow(0 0 18px var(--u1)); }
+.mx-ball.fire::before { content: ''; position: absolute; inset: -60%; border-radius: 50%; background: radial-gradient(closest-side, #fff, var(--u2) 30%, var(--u1) 60%, transparent); mix-blend-mode: screen; animation: mx-fire .1s ease-in-out infinite alternate; }
+
+.mx-chip.legend { color: #0b0c08; background: linear-gradient(135deg, #fff, #ffb36b 40%, #ff6a2b); border-color: transparent; font-weight: 900; box-shadow: 0 0 20px -4px #ff6a2b; animation: mx-pop .8s 1.1s both; }
+@media (max-width: 640px) {
+  .mx-ult { padding: 8px 10px; gap: 10px; margin-bottom: 8px; }
+  .mx-ult-t b { font-size: 20px; }
+  .mx-ult-go { font-size: 13px; padding: 7px 10px; }
+  .mx-ult-k { display: none; }
+}
+
+/* Mode Carrière : note du match */
+.mx-loading .mx-btn { margin-left: 14px; }
+.mx-rating { display: flex; align-items: center; gap: 14px; padding: 10px 16px; border-radius: 16px; background: rgba(0,0,0,.45); border: 2px solid #3a3d33; animation: mx-pop .8s .6s both; }
+.mx-rating b { font-family: var(--title-f); font-size: 64px; line-height: .9; font-weight: 900; }
+.mx-rating span { display: flex; flex-direction: column; font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
+.mx-rating small { font-size: 15px; letter-spacing: .02em; text-transform: none; color: #ecebe3; margin-top: 2px; }
+.mx-rating.top { border-color: #2ed573; box-shadow: 0 0 34px -8px #2ed573; } .mx-rating.top b { color: #2ed573; }
+.mx-rating.good b { color: #a8e063; } .mx-rating.avg b { color: #f5c542; } .mx-rating.low b { color: #ff6b78; }
