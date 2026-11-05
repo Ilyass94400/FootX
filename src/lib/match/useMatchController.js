@@ -3,6 +3,7 @@ import { initMatch, matchReducer, aiChoice, SCENARIOS, TIMING, ATTACK_IDS, DEFEN
 import { addStock } from '../boosterStock'
 import { eco } from '../economy'
 import { coinSound } from '../economy/fx'
+import { track } from '../quests'
 
 // ============================================================================
 // Contrôleur de match : orchestre les phases du moteur (pur) avec le temps réel.
@@ -99,6 +100,11 @@ export function useMatchController(makeSetup, opponent = aiOpponent) {
         const streak = win ? readNum(STREAK_KEY, 0) + 1 : 0
         writeNum(STREAK_KEY, streak)
         nextLevel(win)
+        // Défis : matchs joués / gagnés, buts (avec le pays et le club du buteur), timings parfaits
+        track('match_played', 1)
+        if (win) track('match_won', 1)
+        track('perfect_qte', s.stats.perfect)
+        for (const h of s.history) if (h.side === 'me' && h.kind === 'goal') track('goal_scored', 1, h.scorer || {})
         setReward({ ...(win ? grantWinReward() : { booster: false, left: null }), streak, coins: null })
         // X-Coins : victoire +500, défaite +100 (une seule fois par match, plafonné par jour côté serveur)
         Promise.resolve(eco.claimMatchReward(String(s.seed), win)).then((r) => {

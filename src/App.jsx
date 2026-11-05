@@ -6,6 +6,7 @@ import Navbar from './components/Navbar'
 import Login from './pages/Login'
 import Hub from './pages/Hub'
 import League from './pages/League'
+import Defis from './pages/Defis'
 import Boosters from './pages/Boosters'
 import Collection from './pages/Collection'
 import Marche from './pages/Marche'
@@ -17,6 +18,7 @@ import ComingSoon from './pages/ComingSoon'
 const PAGES = {
   accueil: Hub,
   ligue: League,
+  defis: Defis,
   boosters: Boosters,
   collection: Collection,
   marche: Marche,

@@ -5,6 +5,7 @@ import { roleOf, cardRating, fitsSlot, SLOTS } from '../lib/collectif'
 import { useTeam } from '../lib/useTeam'
 import { CHEM_EFFECT, RARITY_CAP, canPlace, previewPlacement, rarityCount, MAX_TEAM_CHEM } from '../lib/chemistry'
 import { warpTo } from '../lib/warp'
+import { track } from '../lib/quests'
 import HeroCard from '../components/HeroCard'
 import PackFx from '../components/PackFx'
 import '../components/pack.css'
@@ -99,6 +100,13 @@ export default function Team() {
     }
     setPop({ slot: s, tone: TONE(chem >= 2 ? 2 : chem), delta, chem, key: Date.now() })
   }, [t.chemistry])
+
+  // Défis "collectif" : meilleur collectif individuel et collectif d'équipe atteints
+  useEffect(() => {
+    const best = Math.max(0, ...SLOTS.map((s) => t.chemistry.cards[s.id]?.chem ?? 0))
+    track('team_chem', best)
+    if (SLOTS.every((s) => t.team[s.id])) track('team_chem_total', t.chemistry.total)
+  }, [t.chemistry, t.team])
 
   // ---- collection filtrée / triée
   const view = useMemo(() => {

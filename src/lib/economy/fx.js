@@ -55,6 +55,8 @@ export function spendSound() {
 export function flyCoins(from, n = 10) {
   const target = document.querySelector('.cc-wallet .cc-coin')
   if (!target || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+  // le compteur attend l'arrivée de la 1re pièce avant de faire rouler ses chiffres
+  window.dispatchEvent(new CustomEvent('footx:coins-incoming', { detail: { ms: 820 } }))
   const to = target.getBoundingClientRect()
   const sx = from?.x ?? window.innerWidth / 2
   const sy = from?.y ?? window.innerHeight / 2

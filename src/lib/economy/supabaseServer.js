@@ -101,5 +101,6 @@ export const supabaseServer = {
   async placeBid(id, amount) { const { error } = await supabase.rpc('place_bid', { p_listing: id, p_amount: amount }); fail(error); await this.wallet(); emit({ type: 'bid', listing: id, amount }) },
   async buyNow(id) { const { data, error } = await supabase.rpc('buy_now', { p_listing: id }); fail(error); await this.wallet(); emit({ type: 'bought', listing: id, price: data }) },
   async cancelListing(id) { const { error } = await supabase.rpc('cancel_listing', { p_listing: id }); fail(error) },
+  async grantQuestReward() { return this.wallet() }, // en live, claim_quest crédite côté serveur
   async tick() { return [] }, // la clôture est faite par pg_cron chaque minute
 }

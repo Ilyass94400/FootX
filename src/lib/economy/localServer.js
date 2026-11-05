@@ -149,6 +149,16 @@ export const localServer = {
     return this.wallet()
   },
 
+  // Récompense de défi (idempotente : la même clé ne paie qu'une fois, comme claim_quest en SQL).
+  async grantQuestReward(key, coins) {
+    const s = state()
+    if (s.requests['quest:' + key]) return this.wallet()
+    const ev = move(coins, 'quest_reward', key)
+    s.requests['quest:' + key] = true
+    save([ev])
+    return this.wallet()
+  },
+
   async claimMatchReward(matchId, win) {
     const s = state()
     const key = 'match:' + matchId

@@ -6,7 +6,8 @@ import './coins.css'
 // Compteur de X-Coins du header : effet "odomètre" (chaque chiffre roule jusqu'à sa valeur),
 // halo vert/rouge et montant qui s'envole à chaque mouvement d'argent.
 export default function CoinCounter({ onClick }) {
-  const { balance, mode } = useWallet()
+  const { balance: real, mode } = useWallet()
+  const balance = useHeldBalance(real)
   const prev = useRef(null)
   const [delta, setDelta] = useState(null) // { v, key }
   const [tone, setTone] = useState('')
@@ -35,6 +36,25 @@ export default function CoinCounter({ onClick }) {
       )}
     </button>
   )
+}
+
+// Quand des pièces volent vers le compteur, on retarde l'affichage du nouveau solde
+// jusqu'à leur arrivée : les chiffres roulent pile au moment de l'impact.
+function useHeldBalance(real) {
+  const [shown, setShown] = useState(real)
+  const holdUntil = useRef(0)
+  useEffect(() => {
+    const h = (e) => { holdUntil.current = Date.now() + (e.detail?.ms || 800) }
+    window.addEventListener('footx:coins-incoming', h)
+    return () => window.removeEventListener('footx:coins-incoming', h)
+  }, [])
+  useEffect(() => {
+    const wait = holdUntil.current - Date.now()
+    if (wait <= 0 || shown == null) { setShown(real); return }
+    const t = setTimeout(() => setShown(real), wait)
+    return () => clearTimeout(t)
+  }, [real]) // eslint-disable-line react-hooks/exhaustive-deps
+  return shown
 }
 
 // Chaque chiffre est une colonne 0-9 qui glisse. Les colonnes sont indexées depuis la droite

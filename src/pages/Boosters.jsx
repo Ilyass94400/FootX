@@ -11,6 +11,7 @@ import { spendSound } from '../lib/economy/fx'
 import { useWallet } from '../lib/economy'
 import { CoinIcon } from '../components/CoinCounter'
 import { rollPack, makePicker, loadPity, savePity, FEATURED_RATES, FILLER_RATES, PITY, PACK_SIZE, effectiveRate } from '../lib/drops'
+import { track } from '../lib/quests'
 import './boosters.css'
 
 const RANK = { commune: 1, atypique: 2, rare: 3, epique: 4, legendaire: 5, iconique: 6 }
@@ -80,6 +81,7 @@ function Boosters() {
     }
     setPity(p)
     savePity(p)
+    track('booster_opened', q)
     const newCount = boosterCount + q
     setBoosterCount(newCount)
     localStorage.setItem('footx_booster_count', newCount.toString())

@@ -1,0 +1,31 @@
+/* Défis : badge rouge du menu + notification "Défi terminé !" */
+.nav-links a { position: relative; }
+.nav-badge { font-style: normal; display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px;
+  font-family: 'Barlow', sans-serif; font-size: 10.5px; font-weight: 900; line-height: 1; color: #fff; background: #ff4d5e;
+  box-shadow: 0 0 0 2px var(--bg, #121311), 0 0 12px rgba(255, 77, 94, .9); animation: nav-badge 1.5s ease-in-out infinite; }
+.nav-links .nav-badge { position: absolute; top: 9px; right: -14px; }
+.nav-links a.has-badge { margin-right: 8px; }
+.nav-user { position: relative; }
+.burger-badge { position: absolute; top: -7px; right: -7px; display: none; }
+.nav-badge.inline { margin-left: 8px; vertical-align: 1px; }
+@keyframes nav-badge { 50% { transform: scale(1.18); box-shadow: 0 0 0 2px var(--bg, #121311), 0 0 18px rgba(255, 77, 94, 1); } }
+@media (max-width: 860px) { .burger-badge { display: inline-grid; } }
+
+.qt-stack { position: fixed; top: 70px; right: max(16px, env(safe-area-inset-right, 0px)); z-index: 1300; display: flex; flex-direction: column; gap: 8px; width: min(360px, calc(100vw - 32px)); }
+.qt { position: relative; overflow: hidden; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; cursor: pointer; text-align: left; color: #fff;
+  background: linear-gradient(135deg, rgba(36, 30, 10, .97), rgba(17, 18, 14, .97)); border: 1px solid rgba(245, 197, 66, .55);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, .6), 0 0 34px -10px rgba(245, 197, 66, .7); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  animation: qt-in .55s cubic-bezier(.2, 1.5, .4, 1); }
+.qt:hover { border-color: #f5c542; }
+@keyframes qt-in { from { transform: translateX(110%) scale(.9); opacity: 0; } }
+.qt-check { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; font-size: 22px; color: #0b0c08;
+  background: radial-gradient(circle at 35% 30%, #d6ffe4, #2ed573 55%, #138a45); box-shadow: 0 0 20px rgba(46, 213, 115, .6); animation: qt-pop .5s .15s cubic-bezier(.2, 1.8, .4, 1) both; }
+@keyframes qt-pop { from { transform: scale(0) rotate(-40deg); } }
+.qt-txt { display: flex; flex-direction: column; min-width: 0; }
+.qt-txt em { font-style: normal; font-size: 10.5px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: #f5c542; }
+.qt-txt b { font-family: var(--title, 'Barlow Condensed', sans-serif); font-size: 19px; font-weight: 900; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qt-rew { display: flex; flex-direction: column; align-items: flex-end; font-family: var(--title, 'Barlow Condensed', sans-serif); font-weight: 900; font-size: 20px; color: #f5c542; line-height: 1; }
+.qt-rew small { font-family: 'Barlow', sans-serif; font-size: 11px; font-weight: 800; color: #fff; text-decoration: underline; text-underline-offset: 3px; margin-top: 4px; }
+.qt-c { font-size: 18px; vertical-align: -3px; margin-right: 3px; }
+.qt-bar { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; transform-origin: left; background: #f5c542; animation: qt-bar 5.2s linear forwards; }
+@keyframes qt-bar { to { transform: scaleX(0); } }

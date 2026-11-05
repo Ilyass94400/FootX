@@ -297,7 +297,8 @@ function finish(s, myQ, timeout) {
     bump(c.keeper, kind === 'save' ? 2 : 1)
   }
 
-  s.history = [...s.history, { side: atk, attack: c.choices[atk], defend: c.choices[def], read: c.read, kind, myQ }]
+  s.history = [...s.history, { side: atk, attack: c.choices[atk], defend: c.choices[def], read: c.read, kind, myQ,
+    scorer: kind === 'goal' ? { id: c.attacker.id, name: c.attacker.name, country: c.attacker.country, club: c.attacker.club } : null }]
   c.result = { kind, myQ, aiQ, shooterQ, keeperQ, timeout: !!timeout }
   s.phase = 'outcome'
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { SLOTS } from '../collectif'
 import { gameweekInfo } from './scoring'
+import { track } from '../quests'
 
 // État local de la Ligue (navigateur) — même forme que les futures tables Supabase :
 //   footx_league  → leagues + league_members   { name, code, createdAt }
@@ -56,6 +57,7 @@ export function useLeague() {
     const v = { gw: g.number, team: Object.fromEntries(SLOTS.map((s) => [s.id, snap(team[s.id])])), captain, lockedAt: Date.now() }
     write(LINEUP_KEY, v)
     setLock(v)
+    track('league_lock', 1, { gameweek: g.number })
     return true
   }, [])
 
