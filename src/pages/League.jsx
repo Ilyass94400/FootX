@@ -69,7 +69,7 @@ export default function League({ session }) {
       {/* ------------------------------------------------------------ en-tête */}
       <section className="lg-hero">
         <div className="lg-hero-l">
-          <button className="lg-back" onClick={(e) => warpTo('accueil', { color: '#e4ff3c', x: e.clientX, y: e.clientY })}>← Menu</button>
+          <button className="lg-back" onClick={(e) => warpTo('jouer', { color: '#e4ff3c', x: e.clientX, y: e.clientY })}>← Modes de jeu</button>
           <span className="lg-kicker">Ma Ligue · Saison 1 · Journée {lg.gw.number}</span>
           <LeagueName value={lg.league.name} onSave={lg.rename} canEdit={lg.league.owner !== false} />
           <Invite code={lg.league.code} />

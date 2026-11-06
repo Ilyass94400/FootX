@@ -10,15 +10,21 @@ import { useIncomingCount } from '../lib/friends'
 
 export const NAV = [
   { id: 'accueil', label: 'Accueil' },
-  { id: 'match', label: 'Arène' },
-  { id: 'ligue', label: 'Ligue' },
-  { id: 'carriere', label: 'Carrière' },
+  { id: 'jouer', label: 'Jouer' }, // Arène, Ligue et Carrière réunies sur une page de choix
   { id: 'boosters', label: 'Boosters' },
   { id: 'team', label: 'Équipe' },
   { id: 'collection', label: 'Collection' },
   { id: 'marche', label: 'Marché' },
   { id: 'defis', label: 'Défis' },
 ]
+
+// Modes de jeu regroupés sous « Jouer » (raccourcis dans le menu)
+const MODES = [
+  { id: 'match', label: 'Arène' },
+  { id: 'ligue', label: 'Ligue' },
+  { id: 'carriere', label: 'Carrière' },
+]
+const isPlay = (route) => route === 'jouer' || route === 'match' || route === 'ligue' || route.startsWith('ligue/') || route.startsWith('carriere')
 
 // Pages existantes mais secondaires : seulement dans le menu
 const EXTRA = [
@@ -47,13 +53,18 @@ export default function Navbar({ session, route }) {
         <a className="logo" href="#/accueil">Foot<b>X</b></a>
 
         <nav className="nav-links">
-          {NAV.map((n) => (
-            <a key={n.id} href={'#/' + n.id} className={(route === n.id || route.startsWith(n.id + '/') || (n.id === 'carriere' && route.startsWith('carriere')) ? 'active' : '') + ((n.id === 'defis' && pending) || (n.id === 'carriere' && mail) ? ' has-badge' : '')}>
-              {n.label}
-              {n.id === 'defis' && pending > 0 && <i className="nav-badge" aria-label={`${pending} récompense${pending > 1 ? 's' : ''} à récupérer`}>{pending}</i>}
-              {n.id === 'carriere' && mail > 0 && <i className="nav-badge" aria-label={`${mail} lettre${mail > 1 ? 's' : ''} non lue${mail > 1 ? 's' : ''}`}>{mail}</i>}
-            </a>
-          ))}
+          {NAV.map((n) => {
+            const active = n.id === 'jouer' ? isPlay(route) : route === n.id || route.startsWith(n.id + '/')
+            const badge = (n.id === 'defis' && pending) || (n.id === 'jouer' && mail)
+            return (
+              <a key={n.id} href={'#/' + n.id} className={(active ? 'active' : '') + (badge ? ' has-badge' : '') + (n.id === 'jouer' ? ' nav-play' : '')}>
+                {n.id === 'jouer' && <PlayIcon />}
+                {n.label}
+                {n.id === 'defis' && pending > 0 && <i className="nav-badge" aria-label={`${pending} récompense${pending > 1 ? 's' : ''} à récupérer`}>{pending}</i>}
+                {n.id === 'jouer' && mail > 0 && <i className="nav-badge" aria-label={`${mail} lettre${mail > 1 ? 's' : ''} non lue${mail > 1 ? 's' : ''} (Carrière)`}>{mail}</i>}
+              </a>
+            )
+          })}
         </nav>
 
         <div className="nav-right">
@@ -79,15 +90,27 @@ export default function Navbar({ session, route }) {
               </div>
               {!session.guest && <button className="link" onClick={signOut}>déconnexion</button>}
             </div>
-            <div className="menu-list">
-              {[...NAV, ...EXTRA, ...MORE].map((n) => (
-                <button key={n.id} onClick={() => nav(n.id)} className={route === n.id ? 'active' : ''}>
-                  {n.label}
-                  {n.id === 'defis' && pending > 0 && <i className="nav-badge inline">{pending}</i>}
-                  {n.id === 'amis' && invites > 0 && <i className="nav-badge inline">{invites}</i>}
-                  {MORE.includes(n) && <em>bientôt</em>}
-                </button>
-              ))}
+            <div className="menu-main">
+              <div className="menu-modes" aria-label="Modes de jeu">
+                <span>Jouer</span>
+                {MODES.map((m) => (
+                  <button key={m.id} onClick={() => nav(m.id)} className={route === m.id || route.startsWith(m.id) ? 'active' : ''}>
+                    {m.label}
+                    {m.id === 'carriere' && mail > 0 && <i className="nav-badge inline">{mail}</i>}
+                  </button>
+                ))}
+              </div>
+              <div className="menu-list">
+                {[...NAV, ...EXTRA, ...MORE].map((n) => (
+                  <button key={n.id} onClick={() => nav(n.id)} className={(n.id === 'jouer' ? isPlay(route) : route === n.id) ? 'active' : ''}>
+                    {n.label}
+                    {n.id === 'defis' && pending > 0 && <i className="nav-badge inline">{pending}</i>}
+                    {n.id === 'jouer' && mail > 0 && <i className="nav-badge inline">{mail}</i>}
+                    {n.id === 'amis' && invites > 0 && <i className="nav-badge inline">{invites}</i>}
+                    {MORE.includes(n) && <em>bientôt</em>}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -95,4 +118,8 @@ export default function Navbar({ session, route }) {
       <QuestToaster />
     </header>
   )
+}
+
+function PlayIcon() {
+  return <svg className="nav-play-ico" viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.6-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" fill="currentColor" /></svg>
 }

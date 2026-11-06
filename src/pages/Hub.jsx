@@ -145,7 +145,7 @@ export default function Hub({ session }) {
 }
 
 // Portail : inclinaison + lumière qui suivent la souris, transition "warp" au clic.
-function Portal({ kind, color, route, label, children }) {
+export function Portal({ kind, color, route, label, children }) {
   const ref = useRef(null)
   const move = (e) => {
     const el = ref.current
@@ -193,7 +193,7 @@ function Portal({ kind, color, route, label, children }) {
 }
 
 // Scène de l'Arène : ta carte vedette percute une carte adverse en boucle.
-function ArenaScene({ star }) {
+export function ArenaScene({ star }) {
   const fx = useRef(null)
   const timer = useRef(0)
   const onCycle = useCallback((e) => {
@@ -220,7 +220,7 @@ function ArenaScene({ star }) {
 }
 
 // Scène de la Ligue : l'éventail des 5 titulaires (verrouillé = sceau doré).
-function LeagueScene({ lineup, locked }) {
+export function LeagueScene({ lineup, locked }) {
   const cards = SLOTS.map((s) => lineup?.[s.id]).filter(Boolean)
   return (
     <div className={'hb-scene hb-league-scene' + (locked ? ' locked' : '')} aria-hidden="true">
@@ -250,7 +250,7 @@ function Tile({ route, color, label, kicker, value, hint, pack = false }) {
   )
 }
 
-function Digit({ v, u, tick = false }) {
+export function Digit({ v, u, tick = false }) {
   return (
     <span className="hb-digit">
       <b key={tick ? v : undefined} className={tick ? 'tick' : ''}>{v}</b>
@@ -259,7 +259,7 @@ function Digit({ v, u, tick = false }) {
   )
 }
 
-function Arrow() {
+export function Arrow() {
   return <svg className="hb-arrow" viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true"><path d="M4 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
 }
 function Lock() {

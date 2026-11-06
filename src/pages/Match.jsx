@@ -93,7 +93,7 @@ function useFullPage() {
 }
 
 // Boutons de la barre du haut : retour au menu + vrai plein écran (navigateur).
-function TopBar({ home = 'accueil' }) {
+function TopBar({ home = 'jouer' }) {
   const [fs, setFs] = useState(() => !!document.fullscreenElement)
   useEffect(() => {
     const on = () => setFs(!!document.fullscreenElement)
@@ -108,7 +108,7 @@ function TopBar({ home = 'accueil' }) {
   }
   const quit = (e) => {
     if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {})
-    warpTo(home, { color: home === 'accueil' ? '#e4ff3c' : '#f5c542', x: e.clientX, y: e.clientY })
+    warpTo(home, { color: home === 'jouer' ? '#e4ff3c' : '#f5c542', x: e.clientX, y: e.clientY })
   }
   const canFs = typeof document !== 'undefined' && !!document.documentElement.requestFullscreen
   return (
@@ -281,7 +281,7 @@ function Arena({ pool, myName, career }) {
 
       <PackFx ref={fx} ambient="rgba(255,255,240,.6)" />
       <Hud s={s} />
-      <TopBar home={career ? 'carriere' : 'accueil'} />
+      <TopBar home={career ? 'carriere' : 'jouer'} />
 
       {s.phase === 'kickoff' && <Kickoff s={s} />}
       {s.phase === 'shootout' && <Banner title="Tirs au but" sub="Mort subite · chaque tir compte" />}

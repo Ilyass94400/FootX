@@ -20,9 +20,11 @@ import Team from './pages/Team'
 import ComingSoon from './pages/ComingSoon'
 import Amis from './pages/Amis'
 import Wiki from './pages/Wiki'
+import Jouer from './pages/Jouer'
 
 const PAGES = {
   accueil: Hub,
+  jouer: Jouer,
   ligue: League,
   defis: Defis,
   carriere: Carriere,

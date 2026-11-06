@@ -1,0 +1,68 @@
+/* ============================================================================
+   Jouer (jo-) — les trois modes côte à côte. S'appuie sur les portails de l'accueil (hb-).
+   ============================================================================ */
+.jo { --ink: #0b0c08; display: flex; flex-direction: column; gap: 22px; }
+.jo-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.jo-head h1 { font-size: clamp(42px, 6.4vw, 72px); line-height: .88; font-style: italic; font-weight: 900; letter-spacing: -.01em; }
+.jo-head h1 span { color: var(--accent); }
+.jo-lede { font-family: var(--title); font-weight: 800; font-size: 20px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+
+.jo-modes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.jo-modes .hb-portal { min-height: 580px; }
+.jo-modes .hb-p-content { padding: 80px 24px 24px; }
+.jo-modes .hb-p-content h2 { font-size: clamp(44px, 4.3vw, 66px); }
+.jo-modes .hb-cta { height: 52px; padding: 0 22px; font-size: 19px; white-space: nowrap; }
+/* cartes du duel plus petites : la colonne est plus étroite que sur l'accueil */
+.jo-modes .hb-duel { --cw: clamp(84px, 8.2vw, 116px); }
+.jo-modes .hb-duel-l, .jo-modes .hb-duel-r { top: 33%; }
+.jo-modes .hb-p-sub { font-size: 14.5px; }
+.jo-modes .hb-chips { gap: 6px; }
+
+/* touche de raccourci */
+.jo-key { position: absolute; top: 16px; right: 16px; z-index: 8; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px;
+  font: 800 14px/1 var(--title, inherit); color: #fff; background: rgba(0, 0, 0, .45); border: 1px solid rgba(255, 255, 255, .18); border-bottom-width: 3px;
+  opacity: .7; transition: opacity .3s, border-color .3s, color .3s; }
+.hb-portal:hover .jo-key { opacity: 1; color: var(--pc); border-color: var(--pc); }
+@media (hover: none) { .jo-key { display: none; } }
+
+/* ------------------------------------------------------------------ Carrière */
+.hb-portal.career .hb-portal-in { background: radial-gradient(120% 80% at 50% 0%, #0f2733, #070c10 62%); }
+.jo-career-scene { position: absolute; inset: 0; overflow: hidden; }
+.jo-rays { position: absolute; left: 50%; top: 32%; width: 900px; height: 900px; translate: -50% -50%; opacity: .55;
+  background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--pc) 22%, transparent) 0 6deg, transparent 6deg 18deg);
+  -webkit-mask: radial-gradient(closest-side, #000 15%, transparent 72%); mask: radial-gradient(closest-side, #000 15%, transparent 72%);
+  animation: jo-spin 40s linear infinite; }
+@keyframes jo-spin { to { rotate: 360deg; } }
+.jo-steps { position: absolute; left: 0; right: 0; bottom: 30%; height: 150px; display: flex; align-items: flex-end; justify-content: center; gap: 6px; opacity: .55; }
+.jo-steps i { width: 15%; height: calc(22% + var(--i) * 19%); border-radius: 6px 6px 0 0;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--pc) 45%, transparent), transparent); border-top: 2px solid color-mix(in srgb, var(--pc) 80%, #fff);
+  transform-origin: bottom; animation: jo-rise .8s calc(var(--i) * 90ms) cubic-bezier(.2, 1.2, .4, 1) both; }
+@keyframes jo-rise { from { transform: scaleY(0); } }
+.jo-crest { position: absolute; left: 50%; top: 30%; width: 156px; translate: -50% -50%; color: color-mix(in srgb, var(--pc) 70%, #fff);
+  filter: drop-shadow(0 18px 30px rgba(0, 0, 0, .7)) drop-shadow(0 0 26px color-mix(in srgb, var(--pc) 45%, transparent));
+  animation: jo-float 4.5s ease-in-out infinite; transition: transform .45s cubic-bezier(.2, 1.3, .4, 1); }
+.jo-crest img, .jo-crest svg { display: block; width: 100%; height: auto; }
+.jo-career-scene.empty .jo-crest { opacity: .75; }
+.hb-portal:hover .jo-crest { transform: scale(1.08); }
+@keyframes jo-float { 50% { translate: -50% calc(-50% - 10px); } }
+.jo-lvl { position: absolute; left: 50%; bottom: -12px; translate: -50% 0; white-space: nowrap; padding: 4px 12px; border-radius: 99px;
+  font: 900 15px/1.2 var(--title, inherit); letter-spacing: .06em; text-transform: uppercase; color: #061016; background: var(--pc); box-shadow: 0 6px 18px -6px var(--pc); }
+
+/* ------------------------------------------------------------------ responsive */
+@media (max-width: 1080px) {
+  .jo-modes { grid-template-columns: 1fr; }
+  .jo-modes .hb-portal { min-height: 470px; }
+  .jo-modes .hb-p-content h2 { font-size: clamp(52px, 9vw, 80px); }
+  .jo-modes .hb-duel { --cw: clamp(96px, 16vw, 140px); }
+}
+@media (max-width: 520px) {
+  .jo-modes .hb-portal { min-height: 440px; }
+  .jo-modes .hb-p-content { padding: 70px 18px 20px; }
+  .jo-crest { width: 120px; top: 28%; }
+  .jo-modes .hb-duel { --cw: 84px; }
+  .jo-modes .hb-duel-l, .jo-modes .hb-duel-r { top: 30%; }
+  .jo-lede { font-size: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jo-rays, .jo-crest, .jo-steps i { animation: none; }
+}
