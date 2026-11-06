@@ -85,7 +85,7 @@ export const supabaseServer = {
   // Filtrage côté serveur (index SQL) : tient la charge avec 18 000+ joueurs.
   async listings({ scope = 'market', q = '', rarity = [], role = '', country = '', club = '', minPrice = '', maxPrice = '', buyNowOnly = false, sort = 'ending', page = 0, size = 24 } = {}) {
     const me = await uidOf()
-    let req = supabase.from('market_listings').select('*, cards(image_url, rating)', { count: 'exact' })
+    let req = supabase.from('market_listings').select('*, cards(*)', { count: 'exact' }) // cards(*) : marche même si la table n'a pas de colonne rating
     if (scope === 'market') req = req.eq('status', 'active').gt('ends_at', new Date().toISOString())
     if (scope === 'mine') req = req.eq('seller_id', me)
     if (scope === 'bids') req = req.or(`current_bidder.eq.${me},buyer_id.eq.${me}`)

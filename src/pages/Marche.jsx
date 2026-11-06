@@ -31,7 +31,8 @@ export default function Marche() {
   const [res, setRes] = useState({ items: [], total: 0 })
   const [mine, setMine] = useState({ items: [], total: 0 })
   const [bids, setBids] = useState({ items: [], total: 0 })
-  const [inv, setInv] = useState([])
+  const [inv, setInv] = useState(null) // null = en cours de chargement
+  const [loadError, setLoadError] = useState(null)
   const [now, setNow] = useState(Date.now())
   const [toast, setToast] = useState(null)
   const [party, setParty] = useState(null) // célébration { kind, card, price }
@@ -52,13 +53,19 @@ export default function Marche() {
   useEffect(() => { if (catalogue) bootEconomy(catalogue).then(() => refresh()) }, [catalogue]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const refresh = useCallback(async () => {
-    const [a, b, c, d] = await Promise.all([
+    // chaque partie est indépendante : si le marché ne répond pas, ton club s'affiche quand même
+    const [a, b, c, d] = await Promise.allSettled([
       eco.listings({ ...f, scope: 'market', page, size: PAGE }),
       eco.listings({ scope: 'mine', size: 100 }),
       eco.listings({ scope: 'bids', size: 100 }),
       eco.inventory(),
     ])
-    setRes(a); setMine(b); setBids(c); setInv(d)
+    if (a.status === 'fulfilled') setRes(a.value)
+    if (b.status === 'fulfilled') setMine(b.value)
+    if (c.status === 'fulfilled') setBids(c.value)
+    if (d.status === 'fulfilled') setInv(d.value)
+    const bad = [a, b, c, d].find((x) => x.status === 'rejected')
+    setLoadError(bad ? (bad.reason?.message || 'Erreur serveur') : null)
   }, [f, page])
   useEffect(() => { refresh() }, [refresh])
 
@@ -145,6 +152,9 @@ export default function Marche() {
         </div>
       </header>
       <PageHelp topic="marche" />
+      {loadError && (
+        <p className="mk-loaderr">Une partie du marché n'a pas pu être chargée ({loadError}). <button onClick={() => refresh()}>Réessayer</button></p>
+      )}
       {eco.mode === 'demo' && (
         <p className="mk-demo">Mode démo : le marché tourne dans ton navigateur avec des vendeurs simulés. Avec les tables Supabase, ce sont de vrais joueurs et c'est le serveur qui valide chaque X-Coin.</p>
       )}
@@ -329,7 +339,8 @@ function Countdown({ left, total }) {
 }
 
 // ---------------------------------------------------------------- vendre
-function Sell({ inv, onDone, onError }) {
+function Sell({ inv: invOrNull, onDone, onError }) {
+  const inv = invOrNull || []
   const [sel, setSel] = useState(null)
   const [start, setStart] = useState(0)
   const [bn, setBn] = useState(0)
@@ -364,6 +375,7 @@ function Sell({ inv, onDone, onError }) {
   }
   const valid = e && start >= e.min && bn <= e.max && bn > start
 
+  if (!invOrNull) return <p className="mk-hint mk-loading">Chargement de ton club…</p>
   if (!inv.length) {
     return (
       <div className="mk-emptybox">

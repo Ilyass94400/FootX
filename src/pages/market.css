@@ -252,3 +252,8 @@
   .mk-party-rays, .mk-time.urgent b, .mk-stat.hot b, .mk-buy:disabled { background: #2a2b26; color: #8e8d84; box-shadow: none; cursor: not-allowed; }
 .mk-buy.confirm { animation: none; }
 }
+
+/* erreur de chargement (le reste de la page reste utilisable) */
+.mk-loaderr { margin: 10px 0; padding: 10px 14px; border-radius: 10px; border: 1px solid rgba(255, 92, 92, .35); background: rgba(255, 92, 92, .08); color: #ffb3b3; font-size: 14px; }
+.mk-loaderr button { margin-left: 8px; background: none; border: 0; color: inherit; font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+.mk-loading { padding: 40px 0; text-align: center; }
