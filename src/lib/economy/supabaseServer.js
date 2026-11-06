@@ -94,6 +94,7 @@ export const supabaseServer = {
     if (role) req = req.in('position', ROLE_POSITIONS[role] || [])
     if (country) req = req.ilike('country', country)
     if (club) req = req.ilike('club', club)
+    if (buyNowOnly) req = req.not('buy_now_price', 'is', null) // les ventes « enchères seulement » n'ont pas d'achat immédiat
     const col = buyNowOnly ? 'buy_now_price' : 'start_price'
     if (minPrice !== '') req = req.gte(col, +minPrice)
     if (maxPrice !== '') req = req.lte(col, +maxPrice)
@@ -142,7 +143,14 @@ export const supabaseServer = {
   },
   async claimMatchReward(matchId) { const { data, error } = await supabase.rpc('claim_match_reward', { p_match: matchId }); fail(error); return { amount: data } },
   async quicksell(uids) { const { error } = await supabase.rpc('quicksell_cards', { p_cards: uids }); fail(error); await this.wallet() },
-  async createListing(uid, start, buyNow, hours) { const { data, error } = await supabase.rpc('create_listing', { p_card: uid, p_start: start, p_buy_now: buyNow, p_hours: hours }); fail(error); return data },
+  // Popularité des cartes (ventes, enchères, exemplaires) pour le prix conseillé. Sans la migration 20261114 : {}.
+  async cardStats(ids) {
+    const list = [...new Set(ids.map(Number).filter(Number.isFinite))].slice(0, 500)
+    if (!list.length) return {}
+    const { data, error } = await supabase.rpc('market_card_stats', { p_cards: list })
+    return error ? {} : data || {}
+  },
+  async createListing(uid, start, buyNow, hours) { const { data, error } = await supabase.rpc('create_listing', { p_card: uid, p_start: start, p_buy_now: buyNow ?? null, p_hours: hours }); fail(error); return data },
   async placeBid(id, amount) { const { error } = await supabase.rpc('place_bid', { p_listing: id, p_amount: amount }); fail(error); await this.wallet(); emit({ type: 'bid', listing: id, amount }) },
   async buyNow(id) { const { data, error } = await supabase.rpc('buy_now', { p_listing: id }); fail(error); await this.wallet(); emit({ type: 'bought', listing: id, price: data }) },
   async cancelListing(id) { const { error } = await supabase.rpc('cancel_listing', { p_listing: id }); fail(error) },

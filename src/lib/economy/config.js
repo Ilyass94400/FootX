@@ -32,7 +32,9 @@ export const RARITY_ECO = {
   iconique: { quicksell: 6000, min: 15000, max: 2000000 },
 }
 
-export const ecoOf = (card) => RARITY_ECO[String(card?.rarity || 'commune').toLowerCase()] || RARITY_ECO.commune
+// 'Épique', 'epique', 'EPIQUE' → 'epique' (même règle que _rkey() en SQL)
+export const rarityKey = (r) => String(r || 'commune').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+export const ecoOf = (card) => RARITY_ECO[rarityKey(card?.rarity)] || RARITY_ECO.commune
 
 // Enchère minimale suivante (même formule que place_bid côté SQL).
 export function minNextBid(listing) {

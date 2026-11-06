@@ -7,7 +7,7 @@
 //   VITE_ECONOMY=supabase bascule sur supabaseServer.js, et c'est Postgres qui
 //   fait foi. Les vendeurs/enchérisseurs de ce mode sont des bots de démo.
 // ============================================================================
-import { ECONOMY, RARITY_ECO, ecoOf, minNextBid, afterTax, suggestedPrice } from './config'
+import { ECONOMY, ecoOf, minNextBid, afterTax, suggestedPrice } from './config'
 import { roleOf } from '../collectif'
 import { getStock, spendStock, addStock, MAX_STOCK } from '../boosterStock'
 import { rollPack, makePicker, loadPity, savePity } from '../drops'
@@ -61,12 +61,13 @@ function botListing(card) {
   const e = ecoOf(card)
   const sug = suggestedPrice(card)
   const start = Math.min(e.max - 50, r50(sug.start * (0.8 + Math.random() * 0.5)))
-  const buyNow = Math.min(e.max, Math.max(start + 50, r50(start * (1.5 + Math.random() * 0.9))))
+  // 1 annonce sur 4 : enchères seulement (pas d'achat immédiat)
+  const buyNow = Math.random() < 0.25 ? null : Math.min(e.max, Math.max(start + 50, r50(start * (1.5 + Math.random() * 0.9))))
   const t = now()
   const life = [3600e3, 6 * 3600e3, 24 * 3600e3][(Math.random() * 3) | 0]
   const left = Math.random() < 0.18 ? 40e3 + Math.random() * 6 * 60e3 : Math.random() * life
   const hasBid = Math.random() < 0.35
-  const bid = hasBid ? Math.min(buyNow - 50, r50(start * (1 + Math.random() * 0.25))) : null
+  const bid = hasBid ? Math.min((buyNow ?? e.max + 50) - 50, r50(start * (1 + Math.random() * 0.25))) : null
   return { id: uid(), demo: true, seller: 'bot', sellerName: botName(), card: snap(card), startPrice: start, buyNowPrice: buyNow,
     currentBid: bid, bidder: hasBid ? 'bot' : null, bidCount: hasBid ? 1 + ((Math.random() * 4) | 0) : 0,
     status: 'active', createdAt: t - (life - left), endsAt: t + left }
@@ -132,7 +133,7 @@ export const localServer = {
       return false
     })
     const price = (l) => (buyNowOnly ? l.buyNowPrice : l.currentBid ?? l.startPrice)
-    list = list.filter((l) => (!s || l.card.name?.toLowerCase().includes(s))
+    list = list.filter((l) => (!buyNowOnly || l.buyNowPrice != null) && (!s || l.card.name?.toLowerCase().includes(s))
       && (!rarity.length || rarity.includes(l.card.rarity))
       && (!role || roleOf(l.card.position) === role)
       && (!country || l.card.country?.toLowerCase() === country.toLowerCase())
@@ -260,6 +261,27 @@ export const localServer = {
     return total
   },
 
+  // Popularité des cartes (même forme que market_card_stats en SQL), calculée sur le marché simulé
+  async cardStats(ids) {
+    const s = state()
+    const t = now()
+    const out = {}
+    for (const id of new Set(ids.map(String))) {
+      const same = s.listings.filter((l) => String(l.card.id) === id)
+      const sold = same.filter((l) => l.status === 'sold' && l.finalPrice && t - (l.settledAt || 0) < 30 * 864e5).map((l) => l.finalPrice).sort((a, b) => a - b)
+      const act = same.filter((l) => l.status === 'active' && l.endsAt > t && l.seller !== ME)
+      const copies = s.inventory.filter((i) => String(i.card.id) === id).length
+      out[id] = {
+        copies, owners: copies ? 1 : 0, players: 1, sales: sold.length,
+        median: sold.length ? sold[(sold.length / 2) | 0] : null, last: sold.at(-1) ?? null,
+        active: act.length, lowestBn: act.filter((l) => l.buyNowPrice != null).reduce((m, l) => Math.min(m ?? Infinity, l.buyNowPrice), null),
+        lowestBid: act.reduce((m, l) => Math.min(m ?? Infinity, l.currentBid ?? l.startPrice), null),
+        bids: same.reduce((n, l) => n + (l.bidCount || 0), 0),
+      }
+    }
+    return out
+  },
+
   async createListing(cardUid, start, buyNow, hours) {
     const s = state()
     if (!ECONOMY.durations.includes(hours)) throw new EcoError('invalid', 'Durée invalide (1h, 6h ou 24h)')
@@ -267,8 +289,9 @@ export const localServer = {
     if (!item) throw new EcoError('not_owner', 'Cette carte ne t\'appartient pas')
     if (item.listingId) throw new EcoError('listed', 'Carte déjà en vente')
     if (s.listings.filter((l) => l.seller === ME && l.status === 'active').length >= ECONOMY.maxListings) throw new EcoError('too_many', 'Trop d\'annonces actives')
-    const e = RARITY_ECO[item.card.rarity] || RARITY_ECO.commune
-    if (start < e.min || buyNow > e.max || buyNow <= start) throw new EcoError('price_range', `Prix hors fourchette (${e.min} – ${e.max})`)
+    const e = ecoOf(item.card)
+    if (buyNow === undefined) buyNow = null // null = enchères seulement
+    if (!(start >= e.min && start < e.max) || (buyNow != null && (buyNow > e.max || buyNow <= start))) throw new EcoError('price_range', `Prix hors fourchette (${e.min} – ${e.max})`)
     const l = { id: uid(), seller: ME, sellerName: 'Toi', uid: item.uid, card: item.card, startPrice: start, buyNowPrice: buyNow,
       currentBid: null, bidder: null, bidCount: 0, status: 'active', createdAt: now(), endsAt: now() + hours * 3600e3 }
     s.listings.push(l)
@@ -285,7 +308,8 @@ export const localServer = {
     if (l.bidder === ME) throw new EcoError('leading', 'Tu es déjà le meilleur enchérisseur')
     const min = minNextBid(l)
     if (amount < min) throw new EcoError('bid_too_low', `Enchère minimale : ${min}`)
-    if (amount >= l.buyNowPrice) throw new EcoError('use_buy_now', 'Utilise l\'achat immédiat')
+    if (l.buyNowPrice != null && amount >= l.buyNowPrice) throw new EcoError('use_buy_now', 'Utilise l\'achat immédiat')
+    if (amount > ecoOf(l.card).max) throw new EcoError('bid_too_high', `Enchère maximale : ${ecoOf(l.card).max}`)
     const ev = move(-amount, 'bid_hold', id) // argent bloqué
     l.currentBid = amount
     l.bidder = ME
@@ -299,6 +323,7 @@ export const localServer = {
     const s = state()
     const l = s.listings.find((x) => x.id === id)
     if (!l || l.status !== 'active' || l.endsAt <= now()) throw new EcoError('closed', 'Déjà vendu ou terminé')
+    if (l.buyNowPrice == null) throw new EcoError('no_buy_now', 'Cette vente se fait uniquement aux enchères')
     if (l.seller === ME) throw new EcoError('own', 'C\'est ta propre carte')
     const events = [move(-l.buyNowPrice, 'market_buy', id)]
     if (l.bidder === ME) events.push(move(l.currentBid, 'bid_refund', id))
@@ -332,13 +357,13 @@ export const localServer = {
       const mine = active.filter((l) => l.seller === ME)
       for (const l of mine) {
         const fair = fairValue(l.card)
-        if (l.buyNowPrice <= fair * 0.95 && Math.random() < 0.06) {
+        if (l.buyNowPrice != null && l.buyNowPrice <= fair * 0.95 && Math.random() < 0.06) {
           // un bot achète immédiatement ta carte
           if (l.bidder === 'bot') { /* argent bot : rien à rembourser côté joueur */ }
           Object.assign(l, { status: 'sold', buyer: 'bot', buyerName: botName(), finalPrice: l.buyNowPrice, settledAt: t })
           s.inventory = s.inventory.filter((i) => i.uid !== l.uid)
           events.push(move(afterTax(l.buyNowPrice), 'market_sale', l.id), { type: 'sold', listing: l.id, card: l.card, price: l.buyNowPrice })
-        } else if (minNextBid(l) <= fair && minNextBid(l) < l.buyNowPrice && Math.random() < 0.12) {
+        } else if (minNextBid(l) <= fair && minNextBid(l) < (l.buyNowPrice ?? ecoOf(l.card).max + 1) && Math.random() < 0.12) {
           l.currentBid = minNextBid(l); l.bidder = 'bot'; l.bidCount++
           l.endsAt = Math.max(l.endsAt, t + ECONOMY.antiSnipeSec * 1000)
           events.push({ type: 'bid_received', listing: l.id, amount: l.currentBid })
@@ -348,7 +373,7 @@ export const localServer = {
       for (let i = 0; i < 2 && others.length; i++) {
         const l = others[(Math.random() * others.length) | 0]
         const next = minNextBid(l)
-        if (next >= l.buyNowPrice || next > fairValue(l.card) * 1.15) continue
+        if (next >= (l.buyNowPrice ?? ecoOf(l.card).max + 1) || next > fairValue(l.card) * 1.15) continue
         if (l.bidder === ME) {
           events.push(move(l.currentBid, 'bid_refund', l.id), { type: 'outbid', listing: l.id, card: l.card })
         }

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../supabase'
 import { getBorderColor, RARITIES, RARITY_LABEL } from '../lib/rarity'
-import { roleOf } from '../lib/collectif'
+import { roleOf, cardRating } from '../lib/collectif'
 import { eco, bootEconomy, useEcoEvents, useWallet } from '../lib/economy'
-import { ECONOMY, ecoOf, minNextBid, afterTax, suggestedPrice, fmtCoins } from '../lib/economy/config'
+import { ECONOMY, ecoOf, rarityKey, minNextBid, afterTax, fmtCoins } from '../lib/economy/config'
+import { priceAdvice } from '../lib/economy/pricing'
 import { coinSound, spendSound, flyCoins, isMuted, setMuted } from '../lib/economy/fx'
 import { go } from '../lib/useRoute'
 import HeroCard from '../components/HeroCard'
@@ -63,7 +64,7 @@ export default function Marche() {
     if (a.status === 'fulfilled') setRes(a.value)
     if (b.status === 'fulfilled') setMine(b.value)
     if (c.status === 'fulfilled') setBids(c.value)
-    if (d.status === 'fulfilled') setInv(d.value)
+    if (d.status === 'fulfilled') setInv([...d.value]) // copie : le mode démo renvoie le même tableau modifié
     const bad = [a, b, c, d].find((x) => x.status === 'rejected')
     setLoadError(bad ? (bad.reason?.message || 'Erreur serveur') : null)
   }, [f, page])
@@ -253,7 +254,7 @@ export default function Marche() {
         </div>
       )}
 
-      {tab === 'sell' && <Sell inv={inv} onDone={(msg) => { refresh(); say(msg) }} onError={(m) => say({ tone: 'bad', title: 'Impossible', text: m })} />}
+      {tab === 'sell' && <Sell inv={inv} activeCount={activeMine} onDone={(msg) => { refresh(); say(msg) }} onError={(m) => say({ tone: 'bad', title: 'Impossible', text: m })} />}
       {tab === 'mine' && <Mine list={mine.items} now={now} empty="Tu n'as encore rien mis en vente." onCancel={(l) => act(() => eco.cancelListing(l.id), () => say({ tone: 'info', title: 'Annonce retirée', text: `${l.card.name} est revenu dans ton club.` }))} />}
       {tab === 'bids' && <Mine list={bids.items} now={now} bids empty="Aucune enchère pour l'instant. Trouve une bonne affaire dans l'onglet Acheter." />}
 
@@ -282,6 +283,8 @@ function Listing({ l, now, balance, onBuy, onBid }) {
   useEffect(() => { if (!bidOpen) setAmount(min) }, [min, bidOpen])
   useEffect(() => { if (!confirm) return; const t = setTimeout(() => setConfirm(false), 3000); return () => clearTimeout(t) }, [confirm])
   const step = Math.max(50, Math.round((min * 0.05) / 50) * 50)
+  const hasBn = l.buyNowPrice != null
+  const cap = hasBn ? l.buyNowPrice - 50 : ecoOf(l.card).max // enchère la plus haute possible
   const price = l.currentBid ?? l.startPrice
   const total = l.endsAt - l.createdAt
 
@@ -299,25 +302,27 @@ function Listing({ l, now, balance, onBuy, onBid }) {
           <b key={price} className="tick"><CoinIcon className="mk-c" />{fmtCoins(price)}</b>
           <small>{l.bidCount} enchère{l.bidCount > 1 ? 's' : ''}</small>
         </div>
-        <div className="mk-bn"><span>Achat immédiat</span><b><CoinIcon className="mk-c" />{fmtCoins(l.buyNowPrice)}</b></div>
+        {hasBn
+          ? <div className="mk-bn"><span>Achat immédiat</span><b><CoinIcon className="mk-c" />{fmtCoins(l.buyNowPrice)}</b></div>
+          : <div className="mk-bn none"><span>Enchères seulement</span></div>}
         <Countdown left={left} total={total} />
         {!mineL && (bidOpen ? (
           <div className="mk-bidbox">
             <button onClick={() => setAmount(Math.max(min, amount - step))} disabled={amount <= min} aria-label="Moins">−</button>
             <input inputMode="numeric" value={fmtCoins(amount)} onChange={(e) => setAmount(+e.target.value.replace(/\D/g, '') || min)} aria-label="Montant" />
-            <button onClick={() => setAmount(Math.min(l.buyNowPrice - 50, balance, amount + step))} disabled={amount + step >= l.buyNowPrice || amount + step > balance} aria-label="Plus">+</button>
+            <button onClick={() => setAmount(Math.min(cap, balance, amount + step))} disabled={amount + step > cap || amount + step > balance} aria-label="Plus">+</button>
             <button className="mk-go" onClick={() => { onBid(l, amount); setBidOpen(false) }}>OK</button>
             <button className="mk-x" onClick={() => setBidOpen(false)} aria-label="Annuler">×</button>
           </div>
         ) : (
-          <div className="mk-actions">
-            <button className="mk-bid" onClick={() => setBidOpen(true)} disabled={leading || min >= l.buyNowPrice || min > balance}>
+          <div className={'mk-actions' + (hasBn ? '' : ' solo')}>
+            <button className="mk-bid" onClick={() => setBidOpen(true)} disabled={leading || min > cap || min > balance}>
               {leading ? 'En tête' : <>Enchérir <small>{min > balance ? 'solde insuffisant' : fmtCoins(min)}</small></>}
             </button>
-            <button className={'mk-buy' + (confirm ? ' confirm' : '')} disabled={l.buyNowPrice > balance}
+            {hasBn && <button className={'mk-buy' + (confirm ? ' confirm' : '')} disabled={l.buyNowPrice > balance}
               onClick={() => { if (!confirm) { setConfirm(true); return } setConfirm(false); const r = ref.current?.getBoundingClientRect(); onBuy(l, r && { x: r.left + r.width / 2, y: r.top + r.height / 3 }) }}>
               {l.buyNowPrice > balance ? 'Trop cher' : confirm ? 'Confirmer ?' : 'Acheter'}
-            </button>
+            </button>}
           </div>
         ))}
       </div>
@@ -339,41 +344,89 @@ function Countdown({ left, total }) {
 }
 
 // ---------------------------------------------------------------- vendre
-function Sell({ inv: invOrNull, onDone, onError }) {
+const SELL_SORTS = [
+  ['value', 'Prix conseillé ↓'], ['popular', 'Popularité ↓'], ['rarity', 'Rareté ↓'], ['rating', 'Note ↓'],
+  ['dups', 'Doublons d\'abord'], ['recent', 'Plus récentes'], ['name', 'Nom A → Z'],
+]
+const RANK = Object.fromEntries(RARITIES.map((r, i) => [r, i]))
+const POP_LABEL = ['', 'Peu demandée', 'Assez demandée', 'Demandée', 'Très demandée', 'Star du marché']
+
+function Sell({ inv: invOrNull, activeCount, onDone, onError }) {
   const inv = invOrNull || []
-  const [sel, setSel] = useState(null)
-  const [start, setStart] = useState(0)
-  const [bn, setBn] = useState(0)
-  const [hours, setHours] = useState(6)
-  const [qsConfirm, setQsConfirm] = useState(false)
-  const item = inv.find((i) => i.uid === sel)
-  const free = inv.filter((i) => !i.listingId)
-  const commons = free.filter((i) => i.card.rarity === 'commune')
-  const e = item ? ecoOf(item.card) : null
+  const [picked, setPicked] = useState(() => new Set())
+  const [q, setQ] = useState('')
+  const [rar, setRar] = useState([])
+  const [role, setRole] = useState('')
+  const [sort, setSort] = useState('value')
+  const [dupOnly, setDupOnly] = useState(false)
+  const [stats, setStats] = useState({})
+  const boxRef = useRef(null)
 
+  // popularité de toutes les cartes du club (ventes, enchères, exemplaires en jeu)
+  const idsKey = useMemo(() => [...new Set(inv.map((i) => String(i.card.id)))].sort().join(','), [inv])
   useEffect(() => {
-    if (!item) return
-    const s = suggestedPrice(item.card)
-    setStart(s.start); setBn(s.buyNow); setQsConfirm(false)
-  }, [sel]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (!idsKey) return
+    let alive = true
+    const ids = idsKey.split(',')
+    const chunks = []
+    for (let k = 0; k < Math.min(ids.length, 2000); k += 500) chunks.push(ids.slice(k, k + 500))
+    Promise.all(chunks.map((c) => eco.cardStats?.(c).catch(() => ({})) ?? {}))
+      .then((parts) => { if (alive) setStats(Object.assign({}, ...parts)) })
+    return () => { alive = false }
+  }, [idsKey])
 
-  const list = async () => {
-    try {
-      await eco.createListing(item.uid, start, bn, hours)
-      coinSound(200)
-      onDone({ tone: 'good', title: 'Carte mise en vente', text: `${item.card.name} est sur le marché pour ${hours} h.` })
-      setSel(null)
-    } catch (err) { onError(err.message) }
-  }
-  const quick = async (uids, amount, from) => {
-    try {
-      await eco.quicksell(uids)
-      coinSound(amount); flyCoins(from, Math.min(16, 4 + uids.length))
-      onDone({ tone: 'good', title: 'Vente rapide', text: `+${fmtCoins(amount)} X-Coins` })
-      setSel(null)
-    } catch (err) { onError(err.message) }
-  }
-  const valid = e && start >= e.min && bn <= e.max && bn > start
+  const copies = useMemo(() => {
+    const m = {}
+    for (const i of inv) m[i.card.id] = (m[i.card.id] || 0) + 1
+    return m
+  }, [inv])
+  const advice = useMemo(() => {
+    const m = {}
+    for (const i of inv) m[i.uid] = priceAdvice(i.card, stats[i.card.id] || stats[String(i.card.id)])
+    return m
+  }, [inv, stats])
+
+  const shown = useMemo(() => {
+    const s = q.trim().toLowerCase()
+    const list = inv.filter((i) => (!s || i.card.name?.toLowerCase().includes(s) || i.card.club?.toLowerCase().includes(s))
+      && (!rar.length || rar.includes(rarityKey(i.card.rarity)))
+      && (!role || roleOf(i.card.position) === role)
+      && (!dupOnly || copies[i.card.id] > 1))
+    const rk = (i) => RANK[rarityKey(i.card.rarity)] ?? 0
+    const by = {
+      value: (a, b) => advice[b.uid].start - advice[a.uid].start || advice[b.uid].value - advice[a.uid].value,
+      popular: (a, b) => advice[b.uid].pop.score - advice[a.uid].pop.score || advice[b.uid].start - advice[a.uid].start,
+      rarity: (a, b) => rk(b) - rk(a) || cardRating(b.card) - cardRating(a.card),
+      rating: (a, b) => cardRating(b.card) - cardRating(a.card) || rk(b) - rk(a),
+      dups: (a, b) => copies[b.card.id] - copies[a.card.id] || String(a.card.name).localeCompare(String(b.card.name)),
+      recent: (a, b) => (b.at || 0) - (a.at || 0),
+      name: (a, b) => String(a.card.name).localeCompare(String(b.card.name), 'fr'),
+    }[sort]
+    // les cartes déjà en vente à la fin
+    return list.sort((a, b) => (!!a.listingId - !!b.listingId) || by(a, b))
+  }, [inv, q, rar, role, dupOnly, sort, advice, copies])
+
+  // on retire de la sélection les cartes qui ne sont plus là (vendues, mises en vente)
+  useEffect(() => {
+    setPicked((p) => {
+      const ok = new Set(inv.filter((i) => !i.listingId).map((i) => i.uid))
+      const next = new Set([...p].filter((u) => ok.has(u)))
+      return next.size === p.size ? p : next
+    })
+  }, [inv])
+
+  const sel = useMemo(() => inv.filter((i) => picked.has(i.uid)), [inv, picked])
+  const toggle = (uid) => setPicked((p) => { const n = new Set(p); if (n.has(uid)) n.delete(uid); else n.add(uid); return n })
+  const pickMany = (list) => setPicked(new Set(list.map((i) => i.uid)))
+  const freeShown = shown.filter((i) => !i.listingId)
+  // doublons : on garde l'exemplaire le plus ancien de chaque carte, on sélectionne les autres
+  const extras = useMemo(() => {
+    const seen = new Set()
+    return [...inv].filter((i) => !i.listingId).sort((a, b) => (a.at || 0) - (b.at || 0)).filter((i) => {
+      if (seen.has(i.card.id)) return true
+      seen.add(i.card.id); return false
+    })
+  }, [inv])
 
   if (!invOrNull) return <p className="mk-hint mk-loading">Chargement de ton club…</p>
   if (!inv.length) {
@@ -385,55 +438,239 @@ function Sell({ inv: invOrNull, onDone, onError }) {
       </div>
     )
   }
+  const nFilters = (q ? 1 : 0) + rar.length + (role ? 1 : 0) + (dupOnly ? 1 : 0)
   return (
     <div className="mk-sell">
       <section className="mk-inv">
         <div className="mk-inv-head">
-          <h2>Mon club <small>{free.length} cartes disponibles</small></h2>
-          {commons.length > 0 && (
-            <button className="mk-qs-all" onClick={(ev) => quick(commons.map((i) => i.uid), commons.length * ecoOf(commons[0].card).quicksell, { x: ev.clientX, y: ev.clientY })}>
-              Vente rapide des {commons.length} communes · <CoinIcon className="mk-c" />{fmtCoins(commons.length * ecoOf(commons[0].card).quicksell)}
-            </button>
-          )}
+          <h2>Mon club <small>{inv.filter((i) => !i.listingId).length} cartes disponibles</small></h2>
+          <select className="mk-select" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Trier">
+            {SELL_SORTS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+          </select>
         </div>
+
+        <div className="mk-sf">
+          <input className="mk-input" placeholder="Joueur ou club…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Chercher" />
+          <div className="mk-seg mk-sf-role">
+            {ROLES.map(([id, label]) => <button key={id} className={role === id ? 'on' : ''} onClick={() => setRole(id)}>{label}</button>)}
+          </div>
+          <div className="mk-rar">
+            {RARITIES.map((r) => {
+              const on = rar.includes(r)
+              return <button key={r} className={on ? 'on' : ''} style={{ '--cc': getBorderColor(r) }} onClick={() => setRar(on ? rar.filter((x) => x !== r) : [...rar, r])}>{RARITY_LABEL[r]}</button>
+            })}
+            <button className={'mk-dup' + (dupOnly ? ' on' : '')} onClick={() => setDupOnly(!dupOnly)}>Doublons</button>
+            {nFilters > 0 && <button className="mk-link" onClick={() => { setQ(''); setRar([]); setRole(''); setDupOnly(false) }}>Effacer</button>}
+          </div>
+        </div>
+
+        <div className="mk-pickbar">
+          <span><b>{picked.size}</b> sélectionnée{picked.size > 1 ? 's' : ''}</span>
+          <button onClick={() => pickMany(freeShown)} disabled={!freeShown.length}>Tout sélectionner{nFilters ? ' (filtre)' : ''} · {freeShown.length}</button>
+          {extras.length > 0 && <button onClick={() => pickMany(extras)}>Mes doublons · {extras.length}</button>}
+          {picked.size > 0 && <button className="ghost" onClick={() => setPicked(new Set())}>Désélectionner</button>}
+        </div>
+
         <div className="mk-inv-grid">
-          {inv.map((i) => (
-            <button key={i.uid} className={'mk-inv-card' + (sel === i.uid ? ' on' : '') + (i.listingId ? ' listed' : '')}
-              onClick={() => !i.listingId && setSel(i.uid)} disabled={!!i.listingId}>
-              <HeroCard card={i.card} />
-              {i.listingId && <span className="mk-flag own">En vente</span>}
-            </button>
-          ))}
+          {shown.map((i) => {
+            const a = advice[i.uid]
+            const on = picked.has(i.uid)
+            return (
+              <button key={i.uid} className={'mk-inv-card' + (on ? ' on' : '') + (i.listingId ? ' listed' : '')}
+                onClick={() => !i.listingId && toggle(i.uid)} disabled={!!i.listingId} aria-pressed={on}>
+                <HeroCard card={i.card} tilt={false} />
+                {i.listingId && <span className="mk-flag own">En vente</span>}
+                {!i.listingId && <span className={'mk-tick' + (on ? ' on' : '')} aria-hidden="true"><CheckIcon /></span>}
+                {copies[i.card.id] > 1 && <span className="mk-copies">×{copies[i.card.id]}</span>}
+                <span className="mk-inv-price"><Stars n={a.pop.stars} /><span><CoinIcon className="mk-c" />{a.start < 100000 ? fmtCoins(a.start) : fmtShort(a.start)}</span></span>
+              </button>
+            )
+          })}
+          {!shown.length && <p className="mk-empty">Aucune carte ne correspond à ces filtres.</p>}
         </div>
       </section>
-      <aside className={'mk-sellbox' + (item ? ' on' : '')}>
-        {!item ? <p className="mk-hint">Choisis une carte de ton club pour la mettre en vente ou la vendre rapidement.</p> : (
-          <>
-            <div className="mk-sell-card"><HeroCard card={item.card} /></div>
-            <h3>{item.card.name}</h3>
-            <p className="mk-hint">Fourchette autorisée pour une {RARITY_LABEL[item.card.rarity]} : {fmtCoins(e.min)} – {fmtCoins(e.max)}</p>
-            <PriceField label="Mise à prix" value={start} min={e.min} max={e.max - 50} onChange={setStart} />
-            <PriceField label="Achat immédiat" value={bn} min={Math.max(e.min + 50, start + 50)} max={e.max} onChange={setBn} />
-            <div className="mk-field">
-              <span>Durée</span>
-              <div className="mk-seg">{ECONOMY.durations.map((h) => <button key={h} className={hours === h ? 'on' : ''} onClick={() => setHours(h)}>{h} h</button>)}</div>
-            </div>
-            <div className="mk-net">
-              <span>Si vendu en achat immédiat, tu touches</span>
-              <b><CoinIcon className="mk-c" />{fmtCoins(afterTax(bn))}</b>
-              <small>après {ECONOMY.marketTaxPct} % de taxe</small>
-            </div>
-            <button className="mk-cta" disabled={!valid} onClick={list}>Mettre en vente</button>
-            <button className={'mk-qs' + (qsConfirm ? ' confirm' : '')}
-              onClick={(ev) => { if (!qsConfirm) { setQsConfirm(true); return } quick([item.uid], e.quicksell, { x: ev.clientX, y: ev.clientY }) }}>
-              {qsConfirm ? 'Confirmer la vente rapide ?' : <>Vente rapide · <CoinIcon className="mk-c" />{fmtCoins(e.quicksell)}</>}
-            </button>
-          </>
+
+      <aside ref={boxRef} className={'mk-sellbox' + (sel.length ? ' on' : '')}>
+        {sel.length === 0 && (
+          <div className="mk-sell-empty">
+            <p className="mk-hint">Touche une ou plusieurs cartes de ton club pour les vendre.</p>
+            <p className="mk-hint">Chaque carte a un <b>prix conseillé</b> calculé avec sa rareté et sa popularité : ventes récentes, enchères, grand club, exemplaires en jeu et note.</p>
+          </div>
         )}
+        {sel.length === 1 && <SellOne key={sel[0].uid} item={sel[0]} adv={advice[sel[0].uid]} onDone={onDone} onError={onError} />}
+        {sel.length > 1 && <SellMany key={sel.length} items={sel} advice={advice} activeCount={activeCount} onDone={onDone} onError={onError} onRemove={toggle} />}
       </aside>
+
+      {sel.length > 0 && (
+        <button className="mk-pick-go" onClick={() => boxRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+          {sel.length} carte{sel.length > 1 ? 's' : ''} sélectionnée{sel.length > 1 ? 's' : ''} · Vendre ↓
+        </button>
+      )}
     </div>
   )
 }
+
+// Une carte : prix conseillé, mise à prix, achat immédiat facultatif
+function SellOne({ item, adv, onDone, onError }) {
+  const [start, setStart] = useState(adv.start)
+  const [withBn, setWithBn] = useState(true)
+  const [bn, setBn] = useState(adv.buyNow)
+  const [hours, setHours] = useState(6)
+  const [busy, setBusy] = useState(false)
+  const [qsConfirm, setQsConfirm] = useState(false)
+  const edited = useRef(false)
+  // la popularité arrive après coup : on met à jour tant que le joueur n'a rien touché
+  useEffect(() => { if (!edited.current) { setStart(adv.start); setBn(adv.buyNow) } }, [adv.start, adv.buyNow])
+  const edit = (fn) => (v) => { edited.current = true; fn(v) }
+  const valid = start >= adv.min && start < adv.max && (!withBn || (bn > start && bn <= adv.max))
+  const isAdvice = start === adv.start && (!withBn || bn === adv.buyNow)
+
+  const list = async () => {
+    setBusy(true)
+    try {
+      await eco.createListing(item.uid, start, withBn ? bn : null, hours)
+      coinSound(200)
+      onDone({ tone: 'good', title: 'Carte mise en vente', text: `${item.card.name} est sur le marché pour ${hours} h${withBn ? '' : ', aux enchères seulement'}.` })
+    } catch (err) { onError(err.message) }
+    setBusy(false)
+  }
+  const quick = async (ev) => {
+    if (!qsConfirm) { setQsConfirm(true); return }
+    try {
+      await eco.quicksell([item.uid])
+      coinSound(adv.quick); flyCoins({ x: ev.clientX, y: ev.clientY }, 6)
+      onDone({ tone: 'good', title: 'Vente rapide', text: `+${fmtCoins(adv.quick)} X-Coins` })
+    } catch (err) { onError(err.message) }
+  }
+
+  return (
+    <>
+      <div className="mk-sell-card"><HeroCard card={item.card} /></div>
+      <h3>{item.card.name}</h3>
+      <Advice adv={adv} onApply={isAdvice ? null : () => { edited.current = false; setStart(adv.start); setBn(adv.buyNow) }} />
+      <PriceField label="Mise à prix (départ des enchères)" value={start} min={adv.min} max={adv.max - 50} onChange={edit(setStart)} />
+      <label className="mk-toggle mk-bn-toggle">
+        <input type="checkbox" checked={withBn} onChange={(e) => { setWithBn(e.target.checked); if (e.target.checked && bn <= start) setBn(Math.min(adv.max, Math.max(adv.buyNow, start + 50))) }} />
+        <span />Prix d'achat immédiat
+        <small>{withBn ? 'un joueur peut l\'acheter tout de suite' : 'enchères seulement'}</small>
+      </label>
+      {withBn && <PriceField label="Achat immédiat" value={bn} min={Math.min(adv.max, start + 50)} max={adv.max} onChange={edit(setBn)} />}
+      <div className="mk-field">
+        <span>Durée</span>
+        <div className="mk-seg">{ECONOMY.durations.map((h) => <button key={h} className={hours === h ? 'on' : ''} onClick={() => setHours(h)}>{h} h</button>)}</div>
+      </div>
+      <div className="mk-net">
+        <span>{withBn ? 'Si vendu en achat immédiat, tu touches' : 'Tu touches au moins'}</span>
+        <b><CoinIcon className="mk-c" />{fmtCoins(afterTax(withBn ? bn : start))}</b>
+        <small>après {ECONOMY.marketTaxPct} % de taxe</small>
+      </div>
+      {!valid && <p className="mk-warn">Fourchette pour cette rareté : {fmtCoins(adv.min)} – {fmtCoins(adv.max)}{withBn ? ', achat immédiat au-dessus de la mise à prix' : ''}.</p>}
+      <button className="mk-cta" disabled={!valid || busy} onClick={list}>{busy ? 'Mise en vente…' : 'Mettre en vente'}</button>
+      <button className={'mk-qs' + (qsConfirm ? ' confirm' : '')} onClick={quick} onBlur={() => setQsConfirm(false)}>
+        {qsConfirm ? 'Confirmer la vente rapide ?' : <>Vente rapide au jeu · <CoinIcon className="mk-c" />{fmtCoins(adv.quick)}</>}
+      </button>
+    </>
+  )
+}
+
+// Plusieurs cartes : chacune au prix conseillé, achat immédiat facultatif pour toutes
+function SellMany({ items, advice, activeCount, onDone, onError, onRemove }) {
+  const [withBn, setWithBn] = useState(true)
+  const [hours, setHours] = useState(6)
+  const [busy, setBusy] = useState(null)
+  const [qsConfirm, setQsConfirm] = useState(false)
+  const room = Math.max(0, ECONOMY.maxListings - activeCount)
+  const quickTotal = items.reduce((t, i) => t + advice[i.uid].quick, 0)
+  const startTotal = items.reduce((t, i) => t + advice[i.uid].start, 0)
+  const bnTotal = items.reduce((t, i) => t + advice[i.uid].buyNow, 0)
+  const n = Math.min(items.length, room)
+
+  const listAll = async () => {
+    let ok = 0
+    let err = null
+    for (const i of items.slice(0, n)) {
+      setBusy(`${ok + 1} / ${n}`)
+      try {
+        const a = advice[i.uid]
+        await eco.createListing(i.uid, a.start, withBn ? a.buyNow : null, hours)
+        ok++
+      } catch (e) { err = e.message; break }
+    }
+    setBusy(null)
+    if (ok) { coinSound(300); onDone({ tone: 'good', title: `${ok} carte${ok > 1 ? 's' : ''} en vente`, text: err ? `Arrêt : ${err}` : `Au prix conseillé, pour ${hours} h${withBn ? '' : ', enchères seulement'}.` }) }
+    else if (err) onError(err)
+  }
+  const quickAll = async (ev) => {
+    if (!qsConfirm) { setQsConfirm(true); return }
+    try {
+      await eco.quicksell(items.map((i) => i.uid))
+      coinSound(quickTotal); flyCoins({ x: ev.clientX, y: ev.clientY }, Math.min(16, 4 + items.length))
+      onDone({ tone: 'good', title: 'Vente rapide', text: `${items.length} cartes · +${fmtCoins(quickTotal)} X-Coins` })
+    } catch (e) { onError(e.message) }
+  }
+
+  return (
+    <>
+      <div className="mk-fan" aria-hidden="true">
+        {items.slice(0, 5).map((i, k, arr) => (
+          <div key={i.uid} style={{ '--k': k - (arr.length - 1) / 2 }}><HeroCard card={i.card} tilt={false} /></div>
+        ))}
+      </div>
+      <h3>{items.length} cartes</h3>
+      <ul className="mk-batch">
+        {items.map((i) => {
+          const a = advice[i.uid]
+          return (
+            <li key={i.uid} style={{ '--cc': getBorderColor(rarityKey(i.card.rarity)) }}>
+              <i />
+              <span className="mk-batch-n">{i.card.name}<small><Stars n={a.pop.stars} /> {RARITY_LABEL[rarityKey(i.card.rarity)]}</small></span>
+              <b><CoinIcon className="mk-c" />{fmtCoins(a.start)}</b>
+              <button onClick={() => onRemove(i.uid)} aria-label={'Retirer ' + i.card.name}>×</button>
+            </li>
+          )
+        })}
+      </ul>
+      <label className="mk-toggle mk-bn-toggle">
+        <input type="checkbox" checked={withBn} onChange={(e) => setWithBn(e.target.checked)} />
+        <span />Prix d'achat immédiat
+        <small>{withBn ? 'au prix conseillé pour chaque carte' : 'enchères seulement'}</small>
+      </label>
+      <div className="mk-field">
+        <span>Durée</span>
+        <div className="mk-seg">{ECONOMY.durations.map((h) => <button key={h} className={hours === h ? 'on' : ''} onClick={() => setHours(h)}>{h} h</button>)}</div>
+      </div>
+      <div className="mk-net">
+        <span>{withBn ? 'Si tout part en achat immédiat' : 'Total des mises à prix'}</span>
+        <b><CoinIcon className="mk-c" />{fmtCoins(afterTax(withBn ? bnTotal : startTotal))}</b>
+        <small>après {ECONOMY.marketTaxPct} % de taxe</small>
+      </div>
+      {items.length > room && <p className="mk-warn">{room ? `Tu peux avoir ${ECONOMY.maxListings} ventes en cours : seules les ${room} premières seront mises en vente.` : `Tu as déjà ${ECONOMY.maxListings} ventes en cours. Attends qu'elles se terminent, ou fais une vente rapide.`}</p>}
+      <button className="mk-cta" disabled={!n || !!busy} onClick={listAll}>{busy ? `Mise en vente ${busy}…` : `Mettre en vente les ${n} au prix conseillé`}</button>
+      <button className={'mk-qs' + (qsConfirm ? ' confirm' : '')} onClick={quickAll} onBlur={() => setQsConfirm(false)} disabled={!!busy}>
+        {qsConfirm ? `Confirmer : vendre les ${items.length} au jeu ?` : <>Vente rapide des {items.length} · <CoinIcon className="mk-c" />{fmtCoins(quickTotal)}</>}
+      </button>
+    </>
+  )
+}
+
+function Advice({ adv, onApply }) {
+  return (
+    <div className="mk-advice">
+      <div className="mk-advice-top">
+        <span>Prix conseillé</span>
+        <b><CoinIcon className="mk-c" />{fmtCoins(adv.start)}</b>
+        <em><Stars n={adv.pop.stars} />{POP_LABEL[adv.pop.stars]}</em>
+      </div>
+      <ul>{adv.reasons.map((r) => <li key={r.text} className={r.tone}>{r.text}</li>)}</ul>
+      {onApply && <button className="mk-link" onClick={onApply}>Remettre le prix conseillé</button>}
+    </div>
+  )
+}
+
+const Stars = ({ n }) => (
+  <span className="mk-stars" aria-label={`Popularité ${n} sur 5`}>{[1, 2, 3, 4, 5].map((k) => <i key={k} className={k <= n ? 'on' : ''} />)}</span>
+)
+const CheckIcon = () => <svg viewBox="0 0 24 24" width="14" height="14"><path d="m5 12.5 4.5 4.5L19 7.5" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
 
 function PriceField({ label, value, min, max, onChange }) {
   const steps = 200
