@@ -80,9 +80,9 @@ export default function Jouer() {
           <ArenaScene star={star} />
           <Key n={1} />
           <div className="hb-p-content">
-            <span className="hb-p-kicker"><i className="hb-live" />Match rapide</span>
+            <span className="hb-p-kicker"><i className="hb-live" />Joueur contre joueur · en direct</span>
             <h2>L'Arène</h2>
-            <p className="hb-p-sub">Ton 5 contre une équipe adverse. 6 actions décisives, environ 2 minutes.</p>
+            <p className="hb-p-sub">Ton 5 contre un vrai joueur en direct (ou l'IA si personne n'est dispo). 6 actions décisives, environ 2 minutes.</p>
             <div className="hb-chips">
               <span className={'hb-chip' + (streak >= 2 ? ' hot' : '')}><b>{streak}</b> {streak > 1 ? 'victoires de suite' : 'victoire de suite'}</span>
               <span className="hb-chip"><b>{won}/5</b> boosters gagnés aujourd'hui</span>

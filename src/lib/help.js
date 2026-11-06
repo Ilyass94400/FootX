@@ -33,6 +33,7 @@ export const HELP = {
       `Limite : **${caps}** maximum par équipe.`,
       'Deux voisins **du même pays** ou **du même club** sont liés : lien vert = les deux, jaune = un seul, rouge = aucun. Un bon collectif agrandit ta zone de timing.',
       'En match : **Force** bat le gardien qui reste, **Feinte** bat celui qui plonge, **Lob** bat celui qui sort. Puis tape au bon moment dans la zone verte.',
+      'L\'Arène te met face à un **vrai joueur** de ton niveau. Si personne n\'est trouvé en 20 secondes, tu joues contre l\'IA. Une victoire rapporte de l\'**elo**.',
     ],
   },
   marche: {

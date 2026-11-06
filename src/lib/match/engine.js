@@ -4,8 +4,8 @@
 // Un match = 6 "actions clés" (+ tirs au but en mort subite si égalité).
 // Chaque action : intro -> choix simultanés (timer) -> clash -> QTE -> issue.
 //
-// Déterministe : même graine + mêmes choix = même match. C'est ce qui permettra
-// à un serveur (Edge Function Supabase) de rejouer et valider une partie PvP.
+// Déterministe : même graine + mêmes choix = même match. En PvP, les deux navigateurs font
+// tourner ce moteur côte à côte ; le serveur ne fait qu'arbitrer les choix (révélation simultanée).
 // ============================================================================
 import { getTraits } from '../traits'
 import { cardRating, computeCollectif } from '../collectif'
@@ -45,6 +45,8 @@ export const TIMING = { kickoff: 2600, intro: 1400, clash: 1900, outcome: 2300, 
 const QV = { perfect: 2, good: 1, miss: -1.2 }
 
 const other = (side) => (side === 'me' ? 'opp' : 'me')
+// Égalité parfaite de momentum : départage identique sur les deux écrans en PvP (l'équipe "home" gagne)
+const meLeads = (s) => (s.pvp?.flip ? s.momentum > 0 : s.momentum >= 0)
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v))
 
 // RNG déterministe (mulberry32). L'état de la graine vit dans s.rng.
@@ -59,7 +61,11 @@ function rand(s) {
 // ---------- Création ----------
 // focus : id de la carte que le joueur incarne (Mode Carrière) → elle prend la plupart des actions clés
 // meta  : données libres renvoyées telles quelles (ex. le match de carrière en cours)
-export function initMatch({ me, opp, names = { me: 'Mon équipe', opp: 'Rival FC' }, seed, level = 0.55, focus = null, meta = null } = {}) {
+// pvp   : { flip } match contre un VRAI joueur. Les deux navigateurs font tourner le même moteur avec la
+//         même graine ; flip = true pour le joueur "extérieur" (son "me" est l'équipe away du serveur).
+//         Pas d'avantage d'IA, et les QTE adverses sont réels (pas simulés).
+export function initMatch({ me, opp, names = { me: 'Mon équipe', opp: 'Rival FC' }, seed, level = 0.55, focus = null, meta = null, pvp = null } = {}) {
+  if (pvp) level = 0
   const sd = (seed ?? (Date.now() ^ Math.floor(Math.random() * 1e9))) | 0
   const s = {
     phase: 'kickoff', idx: 0, seed: sd, rng: sd,
@@ -74,6 +80,7 @@ export function initMatch({ me, opp, names = { me: 'Mon équipe', opp: 'Rival FC
     ultUsed: {}, // Capacités Ultimes de la Légende déjà utilisées (1 fois par match chacune)
     mvp: {},
     ai: null,
+    pvp: pvp ? { flip: !!pvp.flip } : null,
   }
   // Personnalité de l'IA, tirée de la graine : elle a des HABITUDES que le joueur peut repérer et exploiter.
   // Chaque IA a UNE habitude dominante par rôle (≈ 55 % de ses choix) : lisible via ses tendances.
@@ -162,7 +169,7 @@ function newAction(s) {
   let scenario = 'penalty'
   if (s.shootout) side = s.shootout.next
   else {
-    if (!s.current) side = rand(s) < 0.5 ? 'me' : 'opp'
+    if (!s.current) side = (rand(s) < 0.5) !== !!s.pvp?.flip ? 'me' : 'opp' // PvP : même tirage vu des deux côtés
     else {
       const last = s.current.side
       const m = last === 'me' ? s.momentum : -s.momentum
@@ -270,11 +277,12 @@ function simulateQ(s, aiAdv) {
   return r < pPerfect ? 'perfect' : r < pPerfect + pMiss ? 'miss' : 'good'
 }
 
-function finish(s, myQ, timeout) {
+function finish(s, myQ, timeout, oppQ = null) {
   const c = s.current
   const atk = c.side
   const def = other(atk)
-  const aiQ = simulateQ(s, atk === 'opp' ? c.adv : -c.adv)
+  // PvP : la réussite adverse est celle du vrai joueur (aucun tirage) ; sinon l'IA est simulée
+  const aiQ = s.pvp ? (oppQ || 'miss') : simulateQ(s, atk === 'opp' ? c.adv : -c.adv)
   const shooterQ = atk === 'me' ? myQ : aiQ
   const keeperQ = atk === 'me' ? aiQ : myQ
 
@@ -329,7 +337,7 @@ function finish(s, myQ, timeout) {
 
 function end(s) {
   const diff = s.score.me - s.score.opp || s.pens.me - s.pens.opp
-  s.winner = diff > 0 ? 'me' : diff < 0 ? 'opp' : s.momentum >= 0 ? 'me' : 'opp'
+  s.winner = diff > 0 ? 'me' : diff < 0 ? 'opp' : meLeads(s) ? 'me' : 'opp'
   s.phase = 'fulltime'
 }
 
@@ -348,7 +356,7 @@ function next(s) {
   s.idx++
   if (s.idx >= TOTAL_ACTIONS) {
     if (s.score.me === s.score.opp) {
-      s.shootout = { round: 1, taken: 0, next: s.momentum >= 0 ? 'me' : 'opp' }
+      s.shootout = { round: 1, taken: 0, next: meLeads(s) ? 'me' : 'opp' }
       s.phase = 'shootout'
       return
     }
@@ -401,7 +409,12 @@ export function matchReducer(state, action) {
     }
     case 'QTE': {
       if (state.phase !== 'qte') return state
-      const s = draft(state); finish(s, action.q, action.timeout); return s
+      const s = draft(state); finish(s, action.q, action.timeout, action.oppQ); return s
+    }
+    case 'FORFEIT': {
+      // PvP : un joueur a quitté le match (forfeit = qui est parti)
+      if (state.phase === 'fulltime') return state
+      return { ...state, winner: action.winner || 'me', forfeit: action.winner === 'opp' ? 'me' : 'opp', phase: 'fulltime', current: state.current && { ...state.current } }
     }
     case 'NEXT': {
       if (state.phase !== 'outcome') return state

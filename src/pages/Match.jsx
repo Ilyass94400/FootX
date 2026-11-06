@@ -5,7 +5,8 @@ import { getBorderColor, RARITY_LABEL } from '../lib/rarity'
 import { autoFill, SLOTS, fitsSlot } from '../lib/collectif'
 import { useTeam } from '../lib/useTeam'
 import { useOwned } from '../lib/collection'
-import { bootEconomy } from '../lib/economy'
+import { bootEconomy, LIVE } from '../lib/economy'
+import { pvp, pvpSetup, SEARCH_MS, QUEUE_POLL_MS } from '../lib/match/pvp'
 import HeroCard from '../components/HeroCard'
 import { canPlace, CHEM_EFFECT } from '../lib/chemistry'
 import { go } from '../lib/useRoute'
@@ -141,15 +142,95 @@ function TopBar({ home = 'jouer' }) {
 // si elle est incomplète, on la complète avec ses meilleures cartes ou on va la composer.
 // ============================================================================
 function ArenaGate({ pool, myName }) {
-  const [start, setStart] = useState(null) // { team, oppName } une fois le match lancé
+  // 'pre' (avant-match) → 'search' (recherche d'un vrai joueur) → { pvp } ou { ai }
+  const [stage, setStage] = useState({ step: 'pre' })
   useEffect(() => { bootEconomy(pool).catch(() => {}) }, [pool]) // démo : pack de bienvenue si pas encore reçu
-  if (start) return <Arena pool={pool} myName={myName} myTeam={start.team} oppName={start.oppName} />
-  return <PreMatch myName={myName} onStart={setStart} />
+  const again = useCallback(() => setStage({ step: 'pre' }), [])
+  if (stage.step === 'ai') return <Arena pool={pool} myName={myName} myTeam={stage.team} oppName={stage.oppName} notice={stage.notice} />
+  if (stage.step === 'pvp') return <Arena key={stage.match.id} pool={pool} myName={myName} pvpMatch={stage.match} onAgain={again} />
+  if (stage.step === 'search') {
+    return <Search team={stage.team} myName={myName} onCancel={again}
+      onFound={(match) => setStage({ step: 'pvp', match })}
+      onAi={(notice) => setStage({ step: 'ai', team: stage.team, oppName: stage.oppName, notice })} />
+  }
+  return <PreMatch myName={myName}
+    onStart={({ team, oppName }) => setStage({ step: 'ai', team, oppName })}
+    onSearch={({ team, oppName }) => setStage({ step: 'search', team, oppName })} />
+}
+
+// Recherche d'un adversaire réel (SEARCH_MS max), sinon match contre l'IA
+function Search({ team, myName, onFound, onAi, onCancel }) {
+  const [t0] = useState(() => Date.now())
+  const [now, setNow] = useState(() => Date.now())
+  const [players, setPlayers] = useState(null)
+  const [err, setErr] = useState(null)
+  const done = useRef(false)
+  useEffect(() => {
+    let alive = true
+    const finish = (fn) => { if (!done.current && alive) { done.current = true; fn() } }
+    const handle = (r) => {
+      if (r?.id) finish(() => onFound(r))
+      else if (r?.players != null) setPlayers(r.players)
+    }
+    const tick = setInterval(() => setNow(Date.now()), 250)
+    let timer = 0
+    const loop = async () => {
+      while (alive && !done.current) {
+        await new Promise((res) => { timer = setTimeout(res, QUEUE_POLL_MS) })
+        if (!alive || done.current) return
+        if (Date.now() - t0 >= SEARCH_MS) {
+          // personne : on quitte la file (si quelqu'un nous a pris entre-temps, on joue quand même contre lui)
+          const r = await pvp.leave().catch(() => null)
+          if (r?.id) finish(() => onFound(r))
+          else finish(() => onAi('Aucun adversaire disponible pour l\'instant : match contre l\'IA.'))
+          return
+        }
+        try {
+          const r = await pvp.poll()
+          if (r?.idle) handle(await pvp.join(team)) // sorti de la file (double montage en dev, coupure…) : on y retourne
+          else handle(r)
+        } catch { /* coupure : on réessaie */ }
+      }
+    }
+    pvp.join(team).then((r) => { handle(r); loop() }).catch((e) => setErr(e.message))
+    return () => {
+      alive = false
+      clearInterval(tick)
+      clearTimeout(timer)
+      if (!done.current) pvp.leave().catch(() => {}) // page quittée pendant la recherche
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const left = Math.max(0, Math.ceil((SEARCH_MS - (now - t0)) / 1000))
+  const cancel = () => { done.current = true; pvp.leave().catch(() => {}); onCancel() }
+  const vsAi = () => { done.current = true; pvp.leave().then((r) => (r?.id ? onFound(r) : onAi(null))).catch(() => onAi(null)) }
+  return (
+    <div className="mx-stage mx-search">
+      <TopBar />
+      <div className="mx-search-in">
+        <div className="mx-radar" aria-hidden="true"><i /><i /><i /><b /></div>
+        <span className="mx-pre-k">L'Arène · joueur contre joueur</span>
+        <h1>{err ? 'Recherche impossible' : 'Recherche d\'un adversaire…'}</h1>
+        {err ? <p className="mx-search-err">{err}</p> : (
+          <p>
+            <b>{myName}</b> cherche un joueur de ton niveau.
+            {players != null && <> {players > 1 ? `${players} joueurs` : '1 joueur'} en recherche.</>}
+            <br />Sans adversaire dans <b>{left} s</b>, tu joues contre l'IA.
+          </p>
+        )}
+        <div className="mx-search-bar"><i style={{ animationDuration: SEARCH_MS + 'ms' }} /></div>
+        <div className="mx-search-btns">
+          <button className="mx-btn" onClick={vsAi}>Jouer contre l'IA maintenant</button>
+          <button className="mx-btn ghost" onClick={cancel}>Annuler</button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 const LINE = [['A1', 'A2'], ['D1', 'D2'], ['GK']] // affichage : attaque en haut, gardien en bas
 
-function PreMatch({ myName, onStart }) {
+function PreMatch({ myName, onStart, onSearch }) {
   const owned = useOwned()
   const t = useTeam()
   const [oppName] = useState(() => RIVALS[Math.floor(Math.random() * RIVALS.length)])
@@ -171,6 +252,7 @@ function PreMatch({ myName, onStart }) {
   const canAuto = keepers >= 1 && field >= 4
   const capErr = t.validity.errors?.[0]
   const launch = () => { if (ready) onStart({ team: t.team, oppName }) }
+  const search = () => { if (ready) onSearch({ team: t.team, oppName }) }
 
   return (
     <div className="mx-stage mx-pre">
@@ -178,8 +260,8 @@ function PreMatch({ myName, onStart }) {
       <div className="mx-pre-in">
         <header className="mx-pre-head">
           <span className="mx-pre-k">L'Arène · avant-match</span>
-          <h1><b>{myName}</b> <i>vs</i> {oppName}</h1>
-          <p>{ready ? 'Ton 5 est prêt. Vérifie-le, puis lance le match.' : 'Tu joues avec tes cartes : complète ton 5 avant le coup d\'envoi.'}</p>
+          <h1><b>{myName}</b> <i>vs</i> {LIVE ? '???' : oppName}</h1>
+          <p>{!ready ? 'Tu joues avec tes cartes : complète ton 5 avant le coup d\'envoi.' : LIVE ? 'Ton 5 est prêt. Trouve un adversaire : un vrai joueur, ou l\'IA si personne n\'est disponible.' : 'Ton 5 est prêt. Vérifie-le, puis lance le match.'}</p>
         </header>
 
         <div className="mx-pre-board">
@@ -210,7 +292,12 @@ function PreMatch({ myName, onStart }) {
               <p className="mx-pre-note">Il te faut au moins <b>1 gardien</b> et <b>4 joueurs de champ</b> dans ta collection. Tu en as {keepers} et {field} : ouvre des boosters.</p>
             )}
             <div className="mx-pre-btns">
-              <button className="mx-btn primary xl" disabled={!ready} onClick={launch}>Lancer le match</button>
+              {LIVE ? (
+                <>
+                  <button className="mx-btn primary xl" disabled={!ready} onClick={search}>Trouver un adversaire</button>
+                  <button className="mx-btn" disabled={!ready} onClick={launch}>Entraînement contre l'IA</button>
+                </>
+              ) : <button className="mx-btn primary xl" disabled={!ready} onClick={launch}>Lancer le match</button>}
               {canAuto && (
                 <button className="mx-btn" onClick={() => t.fill(mine)}>{missing.length ? 'Compléter avec mes meilleures cartes' : 'Compo auto (mes meilleures cartes)'}</button>
               )}
@@ -225,7 +312,7 @@ function PreMatch({ myName, onStart }) {
 }
 
 // ============================================================================
-function Arena({ pool, myName, career, myTeam, oppName }) {
+function Arena({ pool, myName, career, myTeam, oppName, pvpMatch = null, onAgain, notice = null }) {
   const makeSetup = useCallback(() => {
     if (career) {
       // Mode Carrière : les vrais joueurs de ton club + TOI, contre les joueurs du club adverse
@@ -236,14 +323,16 @@ function Arena({ pool, myName, career, myTeam, oppName }) {
         meta: { career: { fixtureId: career.fixture.id, proId: career.pro?.id, keeper: career.pro?.position === 'GB' } },
       }
     }
+    // Arène contre un VRAI joueur : équipes, graine et noms viennent du serveur (identiques des deux côtés)
+    if (pvpMatch) return pvpSetup(pvpMatch)
     // Arène : TON équipe validée à l'avant-match (uniquement tes cartes), contre une équipe adverse
     const me = myTeam
     const mine = new Set(SLOTS.map((sl) => me[sl.id]?.id))
     const opp = buildTeam(shuffle(pool.filter((c) => !mine.has(c.id))).slice(0, 50))
     return { me, opp, names: { me: myName, opp: oppName || RIVALS[Math.floor(Math.random() * RIVALS.length)] } }
-  }, [pool, myName, career, myTeam, oppName])
+  }, [pool, myName, career, myTeam, oppName, pvpMatch])
 
-  const { s, choose, fireUltimate, qte, rematch, reward } = useMatchController(makeSetup)
+  const { s, choose, fireUltimate, qte, rematch, reward, myPick, netWait, netError } = useMatchController(makeSetup)
   const stageRef = useRef(null)
   const fx = useRef(null)
   const [box, setBox] = useState({ w: 1000, h: 680 })
@@ -262,7 +351,8 @@ function Arena({ pool, myName, career, myTeam, oppName }) {
 
   const c = s.current
   const iAttack = c?.side === 'me'
-  const myChoice = c?.choices.me
+  const myChoice = myPick // mon choix (affiché dès l'envoi en PvP)
+  const live = s.meta?.pvp || null
   const oppLocked = !!c?.choices.opp
   const myRead = c && c.read != null ? (iAttack ? c.read : -c.read) : null
   const myAdv = c ? (iAttack ? c.adv : -c.adv) : 0
@@ -381,7 +471,13 @@ function Arena({ pool, myName, career, myTeam, oppName }) {
       {s.phase === 'shootout' && <Banner title="Tirs au but" sub="Mort subite · chaque tir compte" />}
       {s.phase === 'intro' && c && <Intro c={c} iAttack={iAttack} shootout={s.shootout} focus={s.focus} />}
       {s.phase === 'outcome' && c?.result && <Callout c={c} iAttack={iAttack} />}
-      {s.phase === 'fulltime' && <FullTime s={s} reward={reward} onRematch={rematch} />}
+      {s.phase === 'fulltime' && <FullTime s={s} reward={reward} onRematch={live ? onAgain : rematch} />}
+      {live && s.phase !== 'fulltime' && <LiveBadge live={live} />}
+      {netWait && s.phase !== 'fulltime' && (
+        <div className={'mx-netwait ' + netWait}><span className="mx-dots"><i /><i /><i /></span>{netWait === 'qte' ? `${live?.opp?.name || 'L\'adversaire'} tente sa chance…` : `En attente de ${live?.opp?.name || 'l\'adversaire'}…`}</div>
+      )}
+      {netError && <div className="mx-netwait err">Connexion instable : {netError}</div>}
+      {notice && s.phase === 'kickoff' && <div className="mx-notice">{notice}</div>}
       {s.phase === 'clash' && ult && (
         <UltimateCutscene key={'u' + s.idx} ult={ult} look={legend?.look} number={legend?.number} name={legend?.name}
           caption={iAttack ? 'Capacité Ultime' : 'Capacité Ultime · Défense'} />
@@ -580,11 +676,21 @@ function QteBar({ qte, iAttack, onHit, ult }) {
 }
 
 // ---------- Overlays ----------
+// Match contre un vrai joueur : badge "en direct" avec son nom et son niveau
+function LiveBadge({ live }) {
+  return (
+    <div className="mx-live" title="Match contre un vrai joueur">
+      <i className="mx-live-dot" />En direct
+      {live.opp?.avatar ? <img src={live.opp.avatar} alt="" /> : null}
+      <b>{live.opp?.name}</b>{live.opp?.elo ? <small>{live.opp.elo} elo</small> : null}
+    </div>
+  )
+}
 function Kickoff({ s }) {
   const row = (t) => SLOTS.map((sl) => t[sl.id]).filter(Boolean)
   return (
     <div className="mx-over mx-kickoff">
-      <div className="mx-ko-kicker">Coup d'envoi · 6 actions clés</div>
+      <div className="mx-ko-kicker">{s.meta?.pvp ? 'Joueur contre joueur · en direct' : 'Coup d\'envoi · 6 actions clés'}</div>
       <div className="mx-ko-vs">
         <TeamRow name={s.names.me} cards={row(s.teams.me)} col={s.collectif.me} side="me" />
         <span className="mx-ko-x">VS</span>
@@ -688,7 +794,11 @@ function FullTime({ s, reward, onRematch }) {
       <div className="mx-full-score">
         <span>{s.score.me} <i>–</i> {s.score.opp}</span>
         {pens && <small>{s.pens.me}-{s.pens.opp} aux tirs au but</small>}
+        {s.meta?.pvp && <small>contre {s.names.opp} · joueur réel</small>}
       </div>
+      {s.forfeit === 'opp' && <div className="mx-near">{s.names.opp} a quitté le match : victoire par abandon.</div>}
+      {s.forfeit === 'me' && <div className="mx-near">Tu as été absent trop longtemps : défaite par abandon.</div>}
+      {reward?.disputed && <div className="mx-near">Les deux écrans n'ont pas donné le même score : match sans vainqueur.</div>}
       {close && <div className="mx-near">Si près. Il t'a manqué un seul but.</div>}
       <div className="mx-full-body">
         {mvp && (
@@ -712,6 +822,7 @@ function FullTime({ s, reward, onRematch }) {
             {reward?.error && <span className="mx-chip">{reward.error}</span>}
             {win && reward && !reward.pending && !reward.error && !reward.booster && <span className="mx-chip">{reward.full ? 'Stock de boosters plein (10/10)' : 'Boosters de victoire du jour atteints'}</span>}
             {reward?.streak >= 2 && <span className="mx-chip hot">Série : {reward.streak} victoires</span>}
+            {reward?.elo_delta != null && reward.elo_delta !== 0 && <span className={'mx-chip' + (reward.elo_delta > 0 ? ' hot' : '')}>{reward.elo_delta > 0 ? '+' : ''}{reward.elo_delta} elo</span>}
           </div>
           {insight && (
             <p className="mx-insight">
@@ -722,7 +833,7 @@ function FullTime({ s, reward, onRematch }) {
         </div>
       </div>
       <div className="mx-full-cta">
-        <button className="mx-btn primary xl" onClick={onRematch} autoFocus>Rejouer</button>
+        <button className="mx-btn primary xl" onClick={onRematch} autoFocus>{s.meta?.pvp ? 'Nouveau match' : 'Rejouer'}</button>
         {reward?.booster && <button className="mx-btn gold" onClick={() => go('boosters')}>Ouvrir mon booster</button>}
         <button className="mx-btn ghost" onClick={() => go('team')}>Modifier mon équipe</button>
       </div>

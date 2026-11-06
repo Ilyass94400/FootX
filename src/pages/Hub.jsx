@@ -96,7 +96,7 @@ export default function Hub({ session }) {
           <div className="hb-p-content">
             <span className="hb-p-kicker">3 modes de jeu</span>
             <h2>Jouer</h2>
-            <p className="hb-p-sub">L'Arène pour un match rapide, Ma Ligue pour le week-end, la Carrière en solo.</p>
+            <p className="hb-p-sub">L'Arène contre de vrais joueurs, Ma Ligue pour le week-end, la Carrière en solo.</p>
             <div className="hb-chips">
               <span className={'hb-chip' + (streak >= 2 ? ' hot' : '')}><b>{streak}</b> {streak > 1 ? 'victoires de suite' : 'victoire de suite'}</span>
               <span className="hb-chip"><b>{won}/5</b> boosters gagnés aujourd'hui</span>

@@ -5,13 +5,16 @@ import { coinSound } from '../economy/fx'
 import { track } from '../quests'
 import { reportMatch } from '../career'
 import { cloudSave } from '../cloud'
+import { pvp, exchange, sleep } from './pvp'
+import { applyServerBoosters } from '../boosterStock'
 
 // ============================================================================
 // Contrôleur de match : orchestre les phases du moteur (pur) avec le temps réel.
 //   - un seul useReducer = source de vérité (rejouable, sérialisable)
 //   - les timers vivent ICI, jamais dans le moteur
-//   - l'adversaire passe par un "adapter" : IA locale aujourd'hui,
-//     canal Supabase Realtime demain (même interface : il finit par dispatcher LOCK).
+//   - l'adversaire : IA locale, OU un vrai joueur (s.meta.pvp) : chaque coup passe alors par
+//     le serveur, qui ne révèle le coup adverse qu'une fois les deux joués (voir ./pvp.js).
+//     Le moteur ne reçoit QUE des coups confirmés par le serveur : les deux écrans restent identiques.
 // ============================================================================
 
 const LEVEL_KEY = 'footx_ai_level'
@@ -44,11 +47,57 @@ export function useMatchController(makeSetup, opponent = aiOpponent) {
   // Coup d'envoi enregistré sur le serveur (en ligne) : la récompense de fin de match en dépend.
   const reg = useRef(null)
   const register = useCallback((state) => {
-    if (state.meta?.career) { reg.current = null; return }
+    if (state.meta?.career || state.meta?.pvp) { reg.current = null; return }
     const squad = Object.fromEntries(Object.entries(state.teams?.me || {}).map(([k, c]) => [k, c?.id ?? null]))
     reg.current = Promise.resolve().then(() => eco.matchStart(squad)).catch(() => null)
   }, [])
   useEffect(() => { register(stRef.current) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ---------- Joueur contre joueur ----------
+  const pvpId = s.meta?.pvp?.id || null
+  const alive = useRef(true)
+  useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
+  const sent = useRef({})
+  const [pending, setPending] = useState(null) // mon coup envoyé, pas encore confirmé : { idx, choice | q }
+  const [netWait, setNetWait] = useState(null) // 'choice' | 'qte' : j'attends l'adversaire
+  const [netError, setNetError] = useState(null)
+  const onNetEnd = useCallback((r) => {
+    setNetWait(null)
+    dispatch({ type: 'FORFEIT', winner: r.win ? 'me' : 'opp' })
+  }, [])
+  const submitChoice = useCallback((choice, hesitated) => {
+    const st = stRef.current
+    const idx = st.idx
+    if (!pvpId || st.phase !== 'choose' || sent.current[idx + ':c']) return
+    sent.current[idx + ':c'] = true
+    setPending({ idx, choice })
+    setNetWait('choice')
+    exchange(() => pvp.move(pvpId, idx, choice, hesitated), () => pvp.wait(pvpId, idx, 'choice'), () => alive.current)
+      .then((r) => {
+        if (!r || !alive.current) return
+        if (r.finished) { onNetEnd(r); return }
+        setNetWait(null)
+        dispatch({ type: 'LOCK', who: 'me', choice: r.me.choice, hesitated: r.me.hesitated })
+        dispatch({ type: 'LOCK', who: 'opp', choice: r.opp.choice, hesitated: r.opp.hesitated })
+      })
+      .catch((e) => setNetError(e.message))
+  }, [pvpId, onNetEnd])
+  const submitQ = useCallback((q, timeout) => {
+    const st = stRef.current
+    const idx = st.idx
+    if (!pvpId || st.phase !== 'qte' || sent.current[idx + ':q']) return
+    sent.current[idx + ':q'] = true
+    setPending({ idx, q })
+    setNetWait('qte')
+    exchange(() => pvp.qte(pvpId, idx, q), () => pvp.wait(pvpId, idx, 'qte'), () => alive.current)
+      .then((r) => {
+        if (!r || !alive.current) return
+        if (r.finished) { onNetEnd(r); return }
+        setNetWait(null)
+        dispatch({ type: 'QTE', q: r.me.qte, oppQ: r.opp.qte, timeout: !!timeout && r.me.qte === 'miss' })
+      })
+      .catch((e) => setNetError(e.message))
+  }, [pvpId, onNetEnd])
 
   useEffect(() => {
     const clear = () => { timers.current.forEach(clearTimeout); timers.current = [] }
@@ -67,13 +116,17 @@ export function useMatchController(makeSetup, opponent = aiOpponent) {
         break
       case 'choose': {
         const time = SCENARIOS[c.scenario].time
+        const ids = c.side === 'me' ? ATTACK_IDS : DEFEND_IDS
+        const randomPick = () => ids[Math.floor(Math.random() * ids.length)]
+        if (pvpId) {
+          // vrai adversaire : son coup arrivera par le serveur
+          after(time, () => submitChoice(randomPick(), true))
+          break
+        }
         const aiRole = c.side === 'opp' ? 'attack' : 'defend'
         after(opponent.chooseDelay(time), () => dispatch({ type: 'LOCK', who: 'opp', choice: opponent.choose(stRef.current, aiRole) }))
         // Temps écoulé : choix au hasard + pénalité d'hésitation.
-        after(time, () => {
-          const ids = c.side === 'me' ? ATTACK_IDS : DEFEND_IDS
-          dispatch({ type: 'LOCK', who: 'me', choice: ids[Math.floor(Math.random() * ids.length)], hesitated: true })
-        })
+        after(time, () => dispatch({ type: 'LOCK', who: 'me', choice: randomPick(), hesitated: true }))
         break
       }
       case 'clash':
@@ -81,7 +134,7 @@ export function useMatchController(makeSetup, opponent = aiOpponent) {
         after(TIMING.clash + (c.ultimate ? TIMING.ultimate : 0), () => dispatch({ type: 'START_QTE' }))
         break
       case 'qte':
-        after(c.qte.period * 2.5 + 250, () => dispatch({ type: 'QTE', q: 'miss', timeout: true }))
+        after(c.qte.period * 2.5 + 250, () => (pvpId ? submitQ('miss', true) : dispatch({ type: 'QTE', q: 'miss', timeout: true })))
         break
       case 'outcome':
         after(c.result.kind === 'goal' ? TIMING.goal : TIMING.outcome, () => dispatch({ type: 'NEXT' }))
@@ -99,6 +152,31 @@ export function useMatchController(makeSetup, opponent = aiOpponent) {
             hesitations: s.stats.hesitations, keeper: k.keeper, saves: k.keeper ? s.stats.saves : 0, conceded: s.score.opp,
           })
           setReward({ career: r || { done: true }, streak: 0 })
+          break
+        }
+        if (pvpId) {
+          // vrai adversaire : les deux navigateurs annoncent le score, le serveur valide et récompense
+          setReward({ pending: true, coins: null, streak: null })
+          const goals = s.history.filter((h) => h.side === 'me' && h.kind === 'goal').map((h) => ({ country: h.scorer?.country || '', club: h.scorer?.club || '' }))
+          ;(async () => {
+            for (let i = 0; i < 30 && alive.current; i++) {
+              try {
+                const r = await pvp.finish(pvpId, { my: s.score.me, opp: s.score.opp, win, perfect: s.stats.perfect, goals })
+                if (!r?.pending) {
+                  if (r.state) applyServerBoosters(r.state)
+                  try { localStorage.setItem('footx_win_streak', String(r.streak || 0)) } catch { /* rien */ }
+                  eco.wallet?.().catch?.(() => {})
+                  setReward({ ...r, pending: false })
+                  if (r.coins > 0) setTimeout(() => coinSound(r.coins), 900)
+                  return
+                }
+              } catch (e) {
+                if (e?.hint === 'not_found' || e?.hint === 'closed') { setReward({ pending: false, coins: 0, error: e.message }); return }
+              }
+              await sleep(1500)
+            }
+            if (alive.current) setReward({ pending: false, coins: 0, error: 'Résultat pas encore validé : il apparaîtra dans ton solde.' })
+          })()
           break
         }
         nextLevel(win)
@@ -125,9 +203,9 @@ export function useMatchController(makeSetup, opponent = aiOpponent) {
     return clear
   }, [s.phase, s.idx]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const choose = useCallback((id) => dispatch({ type: 'LOCK', who: 'me', choice: id }), [])
-  const fireUltimate = useCallback(() => dispatch({ type: 'LOCK', who: 'me', ultimate: true }), [])
-  const qte = useCallback((q) => dispatch({ type: 'QTE', q }), [])
+  const choose = useCallback((id) => (pvpId ? submitChoice(id, false) : dispatch({ type: 'LOCK', who: 'me', choice: id })), [pvpId, submitChoice])
+  const fireUltimate = useCallback(() => { if (!pvpId) dispatch({ type: 'LOCK', who: 'me', ultimate: true }) }, [pvpId])
+  const qte = useCallback((q) => (pvpId ? submitQ(q, false) : dispatch({ type: 'QTE', q })), [pvpId, submitQ])
   const rematch = useCallback(() => {
     setReward(null)
     const payload = { ...makeSetup(), level: readNum(LEVEL_KEY, 0.55) }
@@ -135,5 +213,7 @@ export function useMatchController(makeSetup, opponent = aiOpponent) {
     register({ teams: { me: payload.me }, meta: payload.meta })
   }, [makeSetup])
 
-  return { s, choose, fireUltimate, qte, rematch, reward }
+  // mon coup affiché tout de suite (même avant la confirmation du serveur)
+  const myPick = s.current?.choices.me || (pending && pending.idx === s.idx && pending.choice) || null
+  return { s, choose, fireUltimate, qte, rematch, reward, myPick, netWait, netError }
 }
