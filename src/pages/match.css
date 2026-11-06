@@ -513,3 +513,62 @@ html.mx-lock, html.mx-lock body { overflow: hidden; overscroll-behavior: none; }
 .mx-rating small { font-size: 15px; letter-spacing: .02em; text-transform: none; color: #ecebe3; margin-top: 2px; }
 .mx-rating.top { border-color: #2ed573; box-shadow: 0 0 34px -8px #2ed573; } .mx-rating.top b { color: #2ed573; }
 .mx-rating.good b { color: #a8e063; } .mx-rating.avg b { color: #f5c542; } .mx-rating.low b { color: #ff6b78; }
+
+/* ============================================================================
+   Avant-match de l'Arène (mx-pre-) : ton 5, vérifié, avant le coup d'envoi
+   ============================================================================ */
+.mx-pre { overflow-y: auto; background: radial-gradient(70% 55% at 50% 0%, rgba(255, 77, 94, .16), transparent 70%), radial-gradient(60% 50% at 50% 100%, rgba(228, 255, 60, .07), transparent 70%), #0a0a09; }
+.mx-pre-in { width: min(1080px, 100%); margin: 0 auto; padding: 84px 20px 40px; display: flex; flex-direction: column; gap: 22px; }
+.mx-pre-head { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.mx-pre-k { font-size: 12px; font-weight: 800; letter-spacing: .24em; text-transform: uppercase; color: var(--opp); }
+.mx-pre-head h1 { margin: 0; font-family: var(--title-f); font-style: italic; font-weight: 900; text-transform: uppercase; font-size: clamp(30px, 5vw, 56px); line-height: .95; color: #fff; text-wrap: balance; }
+.mx-pre-head h1 b { color: var(--me); }
+.mx-pre-head h1 i { font-size: .55em; color: var(--mute); margin: 0 .2em; }
+.mx-pre-head p { margin: 0; color: #c9c8bf; font-size: 15px; }
+
+.mx-pre-board { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 22px; align-items: center; }
+.mx-pre-pitch { position: relative; display: flex; flex-direction: column; gap: 14px; padding: 22px 16px; border-radius: 22px;
+  background: repeating-linear-gradient(180deg, #123519 0 46px, #10301a 46px 92px); border: 2px solid rgba(255, 255, 255, .14);
+  box-shadow: inset 0 0 0 6px rgba(255, 255, 255, .03), 0 30px 60px -30px rgba(0, 0, 0, .9); }
+.mx-pre-pitch::before { content: ''; position: absolute; left: 50%; top: 50%; width: 120px; aspect-ratio: 1; translate: -50% -50%; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .12); pointer-events: none; }
+.mx-pre-row { display: flex; justify-content: center; gap: clamp(12px, 4vw, 40px); }
+.mx-pre-slot { width: clamp(92px, 14vw, 132px); animation: mx-pre-in .5s cubic-bezier(.2, 1.3, .4, 1) both; }
+.mx-pre-row:nth-child(2) .mx-pre-slot { animation-delay: .08s; } .mx-pre-row:nth-child(3) .mx-pre-slot { animation-delay: .16s; }
+@keyframes mx-pre-in { from { opacity: 0; transform: translateY(14px) scale(.94); } }
+.mx-pre-slot.empty { aspect-ratio: .72; display: grid; }
+.mx-pre-hole { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; border-radius: 12px; border: 2px dashed rgba(255, 255, 255, .28); background: rgba(0, 0, 0, .25);
+  color: rgba(255, 255, 255, .6); font-size: 12px; font-weight: 700; text-align: center; padding: 6px; }
+.mx-pre-hole b { font-size: 28px; line-height: 1; color: var(--me); }
+
+.mx-pre-side { display: flex; flex-direction: column; gap: 14px; }
+.mx-pre-stat { display: flex; align-items: baseline; justify-content: space-between; padding: 12px 16px; border-radius: 14px; background: rgba(255, 255, 255, .04); border: 1px solid rgba(255, 255, 255, .08); }
+.mx-pre-stat span { font-size: 12px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; color: var(--mute); }
+.mx-pre-stat b { font-family: var(--title-f); font-weight: 900; font-size: 34px; color: #fff; }
+.mx-pre-stat small { font-size: 18px; color: var(--mute); }
+.mx-pre-checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700; }
+.mx-pre-checks li { display: flex; align-items: center; gap: 8px; }
+.mx-pre-checks li::before { content: ''; flex: none; width: 18px; height: 18px; border-radius: 50%; background: var(--good) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M5 12.5l4.5 4.5L19 7.5' fill='none' stroke='%230b0c08' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'/></svg>") center / 12px no-repeat; }
+.mx-pre-checks li.ok { color: #c9f5d8; }
+.mx-pre-checks li.ko { color: #ffb3b9; }
+.mx-pre-checks li.ko::before { background: var(--opp) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M7 7l10 10M17 7L7 17' fill='none' stroke='%230b0c08' stroke-width='3.4' stroke-linecap='round'/></svg>") center / 11px no-repeat; }
+.mx-pre-note { margin: 0; padding: 10px 14px; border-radius: 12px; background: rgba(242, 194, 48, .1); border: 1px solid rgba(242, 194, 48, .35); color: #f5dfa0; font-size: 14px; line-height: 1.4; }
+.mx-pre-btns { display: flex; flex-direction: column; gap: 10px; }
+.mx-pre-btns .mx-btn { width: 100%; }
+.mx-pre-btns .mx-btn.xl { animation: none; }
+.mx-pre-btns .mx-btn.xl:not(:disabled) { animation: mx-hitpulse .8s ease-in-out infinite alternate; }
+.mx-pre-btns .mx-btn:disabled { opacity: .35; cursor: not-allowed; transform: none; box-shadow: none; }
+
+@media (max-width: 820px) {
+  .mx-pre-board { grid-template-columns: 1fr; }
+  .mx-pre-in { padding: 72px 16px 32px; gap: 16px; }
+  .mx-pre-slot { width: clamp(68px, 20vw, 100px); }
+  .mx-pre-pitch { padding: 14px 10px; gap: 10px; }
+  .mx-pre-head p { font-size: 14px; }
+  /* les deux chiffres côte à côte : le bouton « Lancer » reste visible sans défiler */
+  .mx-pre-side { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .mx-pre-checks, .mx-pre-note, .mx-pre-btns { grid-column: 1 / -1; }
+  .mx-pre-stat { padding: 8px 12px; }
+  .mx-pre-stat b { font-size: 26px; }
+  .mx-pre-stat span { font-size: 11px; letter-spacing: .12em; }
+}
+@media (prefers-reduced-motion: reduce) { .mx-pre-slot, .mx-pre-btns .mx-btn.xl:not(:disabled) { animation: none; } }

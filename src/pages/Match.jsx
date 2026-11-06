@@ -3,7 +3,10 @@ import { createPortal } from 'react-dom'
 import { supabase } from '../supabase'
 import { getBorderColor, RARITY_LABEL } from '../lib/rarity'
 import { autoFill, SLOTS, fitsSlot } from '../lib/collectif'
-import { loadPlayableTeam } from '../lib/useTeam'
+import { useTeam } from '../lib/useTeam'
+import { useOwned } from '../lib/collection'
+import { bootEconomy } from '../lib/economy'
+import HeroCard from '../components/HeroCard'
 import { canPlace, CHEM_EFFECT } from '../lib/chemistry'
 import { go } from '../lib/useRoute'
 import { warpTo } from '../lib/warp'
@@ -78,7 +81,9 @@ export default function Match({ session, route }) {
       ? <div className="mx-stage mx-loading"><span className="mx-spin" />Préparation du terrain…</div>
       : careerMode && !career
         ? <div className="mx-stage mx-loading">Aucun match de carrière en cours.<button className="mx-btn ghost" onClick={() => go('carriere')}>Retour au vestiaire</button></div>
-        : <Arena pool={pool} myName={`FC ${first}`} career={careerMode ? career : null} />,
+        : careerMode
+          ? <Arena pool={pool} myName={`FC ${first}`} career={career} />
+          : <ArenaGate pool={pool} myName={`FC ${first}`} />,
     document.body,
   )
 }
@@ -131,7 +136,96 @@ function TopBar({ home = 'jouer' }) {
 }
 
 // ============================================================================
-function Arena({ pool, myName, career }) {
+// AVANT-MATCH (Arène) : on joue uniquement avec SES cartes.
+// L'équipe enregistrée est vérifiée (cartes possédées, plafonds de rareté) ;
+// si elle est incomplète, on la complète avec ses meilleures cartes ou on va la composer.
+// ============================================================================
+function ArenaGate({ pool, myName }) {
+  const [start, setStart] = useState(null) // { team, oppName } une fois le match lancé
+  useEffect(() => { bootEconomy(pool).catch(() => {}) }, [pool]) // démo : pack de bienvenue si pas encore reçu
+  if (start) return <Arena pool={pool} myName={myName} myTeam={start.team} oppName={start.oppName} />
+  return <PreMatch myName={myName} onStart={setStart} />
+}
+
+const LINE = [['A1', 'A2'], ['D1', 'D2'], ['GK']] // affichage : attaque en haut, gardien en bas
+
+function PreMatch({ myName, onStart }) {
+  const owned = useOwned()
+  const t = useTeam()
+  const [oppName] = useState(() => RIVALS[Math.floor(Math.random() * RIVALS.length)])
+  const mine = useMemo(() => (owned ? [...new Map(owned.items.filter((i) => i.card).map((i) => [String(i.card.id), i.card])).values()] : null), [owned])
+
+  // une carte vendue, ou une carte du mode démo que le compte ne possède pas : retirée de l'équipe
+  const ownedIds = useMemo(() => (mine ? new Set(mine.map((c) => String(c.id))) : null), [mine])
+  useEffect(() => {
+    if (!ownedIds) return
+    for (const sl of SLOTS) { const c = t.team[sl.id]; if (c && !ownedIds.has(String(c.id))) t.removeFrom(sl.id) }
+  }, [ownedIds]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!mine) return <div className="mx-stage mx-loading"><span className="mx-spin" />Chargement de ta collection…</div>
+
+  const missing = SLOTS.filter((sl) => !t.team[sl.id] || !ownedIds.has(String(t.team[sl.id].id)))
+  const ready = missing.length === 0 && t.validity.ok
+  const keepers = mine.filter((c) => fitsSlot(c, 'GK')).length
+  const field = mine.length - keepers
+  const canAuto = keepers >= 1 && field >= 4
+  const capErr = t.validity.errors?.[0]
+  const launch = () => { if (ready) onStart({ team: t.team, oppName }) }
+
+  return (
+    <div className="mx-stage mx-pre">
+      <TopBar />
+      <div className="mx-pre-in">
+        <header className="mx-pre-head">
+          <span className="mx-pre-k">L'Arène · avant-match</span>
+          <h1><b>{myName}</b> <i>vs</i> {oppName}</h1>
+          <p>{ready ? 'Ton 5 est prêt. Vérifie-le, puis lance le match.' : 'Tu joues avec tes cartes : complète ton 5 avant le coup d\'envoi.'}</p>
+        </header>
+
+        <div className="mx-pre-board">
+          <div className="mx-pre-pitch" aria-label="Ton équipe">
+            {LINE.map((row, r) => (
+              <div key={r} className="mx-pre-row">
+                {row.map((id) => {
+                  const c = t.team[id]
+                  const sl = SLOTS.find((x) => x.id === id)
+                  return (
+                    <div key={id} className={'mx-pre-slot' + (c ? '' : ' empty')}>
+                      {c ? <HeroCard card={c} tilt={false} /> : <span className="mx-pre-hole"><b>+</b>{sl?.label || id}</span>}
+                    </div>
+                  )
+                })}
+              </div>
+            ))}
+          </div>
+
+          <aside className="mx-pre-side">
+            <div className="mx-pre-stat"><span>Collectif</span><b>{missing.length ? '—' : t.collectif.collectif}</b></div>
+            <div className="mx-pre-stat"><span>Titulaires</span><b>{SLOTS.length - missing.length}<small>/{SLOTS.length}</small></b></div>
+            <ul className="mx-pre-checks">
+              <li className={missing.length ? 'ko' : 'ok'}>{missing.length ? `Il manque ${missing.length} titulaire${missing.length > 1 ? 's' : ''}` : '5 titulaires, tous à toi'}</li>
+              <li className={t.validity.ok ? 'ok' : 'ko'}>{t.validity.ok ? `Plafonds de rareté respectés` : capErr?.message}</li>
+            </ul>
+            {!canAuto && (
+              <p className="mx-pre-note">Il te faut au moins <b>1 gardien</b> et <b>4 joueurs de champ</b> dans ta collection. Tu en as {keepers} et {field} : ouvre des boosters.</p>
+            )}
+            <div className="mx-pre-btns">
+              <button className="mx-btn primary xl" disabled={!ready} onClick={launch}>Lancer le match</button>
+              {canAuto && (
+                <button className="mx-btn" onClick={() => t.fill(mine)}>{missing.length ? 'Compléter avec mes meilleures cartes' : 'Compo auto (mes meilleures cartes)'}</button>
+              )}
+              <button className="mx-btn ghost" onClick={(e) => warpTo('team', { color: '#7ad7ff', x: e.clientX, y: e.clientY })}>Composer mon équipe</button>
+              {!canAuto && <button className="mx-btn gold" onClick={() => go('boosters')}>Ouvrir des boosters</button>}
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================================
+function Arena({ pool, myName, career, myTeam, oppName }) {
   const makeSetup = useCallback(() => {
     if (career) {
       // Mode Carrière : les vrais joueurs de ton club + TOI, contre les joueurs du club adverse
@@ -142,12 +236,12 @@ function Arena({ pool, myName, career }) {
         meta: { career: { fixtureId: career.fixture.id, proId: career.pro?.id, keeper: career.pro?.position === 'GB' } },
       }
     }
-    // la Légende (mode Carrière) est remise à jour : sa note et son look évoluent entre deux matchs
-    const me = loadPlayableTeam() || buildTeam(shuffle(pool).slice(0, 60))
+    // Arène : TON équipe validée à l'avant-match (uniquement tes cartes), contre une équipe adverse
+    const me = myTeam
     const mine = new Set(SLOTS.map((sl) => me[sl.id]?.id))
     const opp = buildTeam(shuffle(pool.filter((c) => !mine.has(c.id))).slice(0, 50))
-    return { me, opp, names: { me: myName, opp: RIVALS[Math.floor(Math.random() * RIVALS.length)] } }
-  }, [pool, myName, career])
+    return { me, opp, names: { me: myName, opp: oppName || RIVALS[Math.floor(Math.random() * RIVALS.length)] } }
+  }, [pool, myName, career, myTeam, oppName])
 
   const { s, choose, fireUltimate, qte, rematch, reward } = useMatchController(makeSetup)
   const stageRef = useRef(null)

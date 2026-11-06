@@ -73,6 +73,19 @@ function botListing(card) {
 }
 
 // ---------------------------------------------------------------- API (mêmes noms que les RPC SQL)
+// Pack de bienvenue (mêmes règles que _welcome_pack en SQL) : de quoi jouer en Arène tout de suite
+function welcomePack(catalogue) {
+  const mixed = [...catalogue].sort(() => Math.random() - 0.5)
+  const low = (c) => ['commune', 'atypique'].includes(String(c.rarity || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
+  const picked = []
+  const take = (role, n) => {
+    const list = mixed.filter((c) => roleOf(c.position) === role && !picked.includes(c))
+    picked.push(...[...list.filter(low), ...list.filter((c) => !low(c))].slice(0, n))
+  }
+  take('GK', 1); take('MID', 2); take('ATT', 2)
+  return [...picked, ...mixed.filter((c) => !picked.includes(c)).slice(0, 10 - picked.length)]
+}
+
 export const localServer = {
   mode: 'demo',
 
@@ -82,9 +95,14 @@ export const localServer = {
     if (!s.started) {
       s.started = true
       events.push(move(ECONOMY.startBalance, 'start', null))
-      // pack de bienvenue : de quoi tester la vente tout de suite
-      const pool = [...catalogue].sort(() => Math.random() - 0.5).slice(0, 10)
-      for (const c of pool) s.inventory.push({ uid: uid(), card: snap(c), at: now(), source: 'bienvenue', listingId: null })
+    }
+    // pack de bienvenue : 10 cartes dont une équipe jouable (1 gardien, 2 déf/milieux, 2 attaquants).
+    // Donné dès que le catalogue est connu (l'accueil démarre l'économie sans catalogue).
+    if (!s.welcomed && s.inventory.length) s.welcomed = true
+    if (!s.welcomed && catalogue.length) {
+      s.welcomed = true
+      for (const c of welcomePack(catalogue)) s.inventory.push({ uid: uid(), card: snap(c), at: now(), source: 'bienvenue', listingId: null })
+      events.push({ type: 'inventory' })
     }
     if (catalogue.length) catalogueRef = catalogue
     if (catalogue.length) {
