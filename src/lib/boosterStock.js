@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
-// Stock de boosters du joueur (sauvegardé dans le navigateur pour l'instant).
+// Stock de boosters du joueur. En ligne, c'est le SERVEUR qui fait foi (user_boosters) :
+// cette copie locale sert à l'affichage et au compte à rebours, mise à jour après chaque action.
 // 1 booster revient toutes les 10 min, jusqu'à 10 max. Un nouveau joueur commence avec 10.
 // Au-delà de 10, rien ne s'accumule : il faut ouvrir pour refaire de la place.
 export const MAX_STOCK = 10
@@ -70,4 +71,19 @@ export function useStock() {
 export const formatTime = (ms) => {
   const s = Math.ceil(ms / 1000)
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+}
+
+// ---- Mode en ligne : copie de l'état renvoyé par le serveur (booster_state, open_boosters…)
+let offset = 0 // horloge serveur − horloge du navigateur (ms)
+export function applyServerBoosters(st) {
+  if (!st || typeof st.stock !== 'number') return
+  if (st.server_now) offset = Date.parse(st.server_now) - Date.now()
+  const t = st.regen_at ? Date.parse(st.regen_at) - offset : Date.now()
+  try {
+    localStorage.setItem(KEY, JSON.stringify({ n: st.stock, t }))
+    if (st.pity) localStorage.setItem('footx_pity', JSON.stringify(st.pity))
+    localStorage.setItem('footx_booster_count', String(st.opened || 0))
+    localStorage.setItem('footx_match_rewards', JSON.stringify({ day: new Date().toISOString().slice(0, 10), n: st.win_today || 0 }))
+  } catch { /* stockage indisponible */ }
+  window.dispatchEvent(new Event(EVENT))
 }

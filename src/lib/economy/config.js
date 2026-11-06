@@ -12,6 +12,7 @@ export const ECONOMY = {
   matchWin: 500,
   matchLoss: 100,
   matchDailyCap: 30,
+  winBoostersPerDay: 5, // victoire en Arène = +1 booster, 5 par jour
   boosterPrice: 1500,
   marketTaxPct: 5,
   bidStepPct: 5,

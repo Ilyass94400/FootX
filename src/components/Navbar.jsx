@@ -6,6 +6,7 @@ import CoinCounter from './CoinCounter'
 import QuestToaster from './QuestToaster'
 import { usePendingQuests } from '../lib/quests'
 import { useCareer } from '../lib/career'
+import { useIncomingCount } from '../lib/friends'
 
 export const NAV = [
   { id: 'accueil', label: 'Accueil' },
@@ -14,21 +15,20 @@ export const NAV = [
   { id: 'carriere', label: 'Carrière' },
   { id: 'boosters', label: 'Boosters' },
   { id: 'team', label: 'Équipe' },
+  { id: 'collection', label: 'Collection' },
   { id: 'marche', label: 'Marché' },
   { id: 'defis', label: 'Défis' },
 ]
 
 // Pages existantes mais secondaires : seulement dans le menu
 const EXTRA = [
-  { id: 'collection', label: 'Collection' },
+  { id: 'amis', label: 'Amis' },
+  { id: 'wiki', label: 'Wiki' },
   { id: 'classement', label: 'Classement' },
 ]
 
-// Pages pas encore faites, seulement dans le menu
-const MORE = [
-  { id: 'amis', label: 'Amis' },
-  { id: 'wiki', label: 'Wiki' },
-]
+// Pages pas encore faites, seulement dans le menu (aucune pour l'instant)
+const MORE = []
 
 export default function Navbar({ session, route }) {
   const [open, setOpen] = useState(false)
@@ -37,6 +37,7 @@ export default function Navbar({ session, route }) {
   const pending = usePendingQuests() // récompenses de défis à récupérer → point rouge
   const career = useCareer()
   const mail = career?.unread || 0 // lettres non lues (Mode Carrière)
+  const invites = useIncomingCount(session) // demandes d'amis reçues
 
   const nav = (id) => { setOpen(false); go(id) }
 
@@ -47,7 +48,7 @@ export default function Navbar({ session, route }) {
 
         <nav className="nav-links">
           {NAV.map((n) => (
-            <a key={n.id} href={'#/' + n.id} className={(route === n.id || (n.id === 'carriere' && route.startsWith('carriere')) ? 'active' : '') + ((n.id === 'defis' && pending) || (n.id === 'carriere' && mail) ? ' has-badge' : '')}>
+            <a key={n.id} href={'#/' + n.id} className={(route === n.id || route.startsWith(n.id + '/') || (n.id === 'carriere' && route.startsWith('carriere')) ? 'active' : '') + ((n.id === 'defis' && pending) || (n.id === 'carriere' && mail) ? ' has-badge' : '')}>
               {n.label}
               {n.id === 'defis' && pending > 0 && <i className="nav-badge" aria-label={`${pending} récompense${pending > 1 ? 's' : ''} à récupérer`}>{pending}</i>}
               {n.id === 'carriere' && mail > 0 && <i className="nav-badge" aria-label={`${mail} lettre${mail > 1 ? 's' : ''} non lue${mail > 1 ? 's' : ''}`}>{mail}</i>}
@@ -62,7 +63,7 @@ export default function Navbar({ session, route }) {
             {avatar ? <img src={avatar} alt="" /> : <span className="avatar">{name[0]}</span>}
             <span className="nav-user-name">{name}</span>
             <span className="burger">{open ? '×' : '≡'}</span>
-            {pending > 0 && <i className="nav-badge burger-badge">{pending}</i>}
+            {pending + invites > 0 && <i className="nav-badge burger-badge">{pending + invites}</i>}
           </button>
         </div>
       </div>
@@ -83,6 +84,7 @@ export default function Navbar({ session, route }) {
                 <button key={n.id} onClick={() => nav(n.id)} className={route === n.id ? 'active' : ''}>
                   {n.label}
                   {n.id === 'defis' && pending > 0 && <i className="nav-badge inline">{pending}</i>}
+                  {n.id === 'amis' && invites > 0 && <i className="nav-badge inline">{invites}</i>}
                   {MORE.includes(n) && <em>bientôt</em>}
                 </button>
               ))}

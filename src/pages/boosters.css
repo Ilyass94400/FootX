@@ -117,6 +117,7 @@
 .quick input { accent-color: var(--accent); width: 16px; height: 16px; }
 .quick small { color: var(--muted); }
 .open-btn { width: 100%; padding: 14px; font-size: 22px; margin-top: 4px; }
+.open-error { margin: 8px 0 0; padding: 8px 12px; border-radius: 8px; background: rgba(255, 71, 87, .12); border: 1px solid rgba(255, 71, 87, .4); color: #ffb3b9; font-size: 14px; font-weight: 700; text-align: center; }
 
 /* ---------- Résultats ---------- */
 .result { position: relative; z-index: 2; max-width: 1120px; margin: 0 auto; }

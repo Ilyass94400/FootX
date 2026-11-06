@@ -1,0 +1,44 @@
+/* ============================================================================
+   Wiki des joueurs (wk-) + fiche recto/verso (wd-)
+   ============================================================================ */
+.wk { --ink: #0b0c08; --panel: #121310; --line: rgba(255, 255, 255, .07); --mute: #8e8d84; --acc: #e4ff3c;
+  display: flex; flex-direction: column; gap: 16px; }
+.wk-kicker { font-size: 11.5px; font-weight: 800; letter-spacing: .2em; text-transform: uppercase; color: var(--acc); }
+.wk h1 { margin: 2px 0 6px; font-size: clamp(40px, 5.6vw, 64px); line-height: .9; font-style: italic; font-weight: 900; text-transform: uppercase; }
+.wk-head p { margin: 0; color: var(--mute); font-size: 14.5px; max-width: 70ch; }
+.wk-tools { display: flex; gap: 10px; flex-wrap: wrap; }
+.wk-search { flex: 1; min-width: 220px; height: 46px; padding: 0 14px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, .1); background: #0d0e0b; color: #fff; font: inherit; font-size: 15px; outline: none; }
+.wk-search:focus { border-color: var(--acc); }
+.wk-tools select { height: 46px; padding: 0 12px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, .1); background: #0d0e0b; color: #fff; font: inherit; max-width: 100%; }
+.wk-sort { display: flex; align-items: center; gap: 8px; height: 46px; padding: 0 4px 0 12px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, .1); background: #0d0e0b; }
+.wk-sort span { font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
+.wk-tools .wk-sort select { height: 38px; border: none; background: transparent; padding: 0 6px; font-weight: 700; }
+.wk-tools .wk-sort select:focus { outline: 2px solid var(--acc); border-radius: 8px; }
+.wk-price { position: absolute; left: 50%; bottom: -10px; translate: -50% 0; z-index: 3; display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 10px; border-radius: 99px; white-space: nowrap;
+  font-family: var(--title); font-weight: 900; font-size: 14px; color: #ffe08a; background: #1a160a; border: 1px solid rgba(245, 197, 66, .5); box-shadow: 0 4px 12px rgba(0, 0, 0, .5); }
+.wk-rar { display: flex; gap: 8px; flex-wrap: wrap; }
+.wk-rar button { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: 99px; cursor: pointer; font-weight: 800; font-size: 13px; color: #d6d4cb;
+  background: var(--panel); border: 1px solid color-mix(in srgb, var(--rc) 35%, transparent); }
+.wk-rar i { width: 10px; height: 10px; border-radius: 50%; background: var(--rc); box-shadow: 0 0 8px var(--rc); }
+.wk-rar button.on { background: color-mix(in srgb, var(--rc) 22%, var(--panel)); color: #fff; border-color: var(--rc); }
+
+.wk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px 14px; }
+.wk-card { position: relative; padding: 0; border: none; background: none; cursor: pointer; animation: wk-in .35s calc(var(--i, 0) * 15ms) both; transition: transform .25s cubic-bezier(.2, 1.4, .4, 1), filter .25s; }
+.wk-card:hover { transform: translateY(-6px) scale(1.03); filter: drop-shadow(0 0 16px color-mix(in srgb, var(--rc) 55%, transparent)); z-index: 2; }
+.wk-card.skel { aspect-ratio: 3 / 4.15; border-radius: 12px; background: linear-gradient(90deg, #151613 25%, #1d1e1a 50%, #151613 75%) 0 0 / 200% 100%; animation: wk-skel 1.2s linear infinite; cursor: default; }
+@keyframes wk-skel { to { background-position: -200% 0; } }
+@keyframes wk-in { from { opacity: 0; transform: translateY(10px); } }
+.wk-own { position: absolute; top: -7px; right: -6px; z-index: 3; height: 24px; padding: 0 8px; border-radius: 99px; display: grid; place-items: center; font-family: var(--title); font-weight: 900; font-size: 13px; color: var(--ink); background: var(--acc); box-shadow: 0 0 0 3px #0b0c08; }
+.wk-empty { color: var(--mute); text-align: center; padding: 30px 0; }
+.wk-more { align-self: center; height: 46px; padding: 0 22px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, .15); background: #151613; color: #fff; font-weight: 800; cursor: pointer; }
+.wk-more:hover { border-color: var(--acc); }
+
+@media (max-width: 760px) {
+  .wk-tools select, .wk-sort { flex: 1; }
+  .wk-sort select { width: 100%; }
+  .wk-price { font-size: 12px; padding: 0 7px; }
+  .wk-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 12px 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wk * { animation: none !important; }
+}

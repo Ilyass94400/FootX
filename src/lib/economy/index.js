@@ -3,9 +3,13 @@ import { localServer } from './localServer'
 import { supabaseServer } from './supabaseServer'
 
 // Choix du "serveur" d'économie :
-//   - par défaut : mode démo local (jouable sans backend)
-//   - VITE_ECONOMY=supabase : vraie économie sécurisée par Postgres
-export const eco = import.meta.env.VITE_ECONOMY === 'supabase' ? supabaseServer : localServer
+//   - site en ligne (connexion Discord) : SAUVEGARDE EN LIGNE, tout passe par Postgres
+//     (migrations 20261105 → 20261110 à exécuter dans Supabase avant de déployer)
+//   - connexion coupée (VITE_DISCORD_AUTH=false) : mode démo local, dans le navigateur
+//   - VITE_ECONOMY=demo ou =supabase force l'un ou l'autre
+const FORCED = import.meta.env.VITE_ECONOMY
+export const LIVE = FORCED ? FORCED === 'supabase' : import.meta.env.VITE_DISCORD_AUTH !== 'false'
+export const eco = LIVE ? supabaseServer : localServer
 export { EcoError } from './localServer'
 
 let booted = null

@@ -11,6 +11,7 @@ import PackFx from '../components/PackFx'
 import { CoinIcon } from '../components/CoinCounter'
 import '../components/pack.css'
 import './market.css'
+import PageHelp from '../components/PageHelp'
 
 // ============================================================================
 // Marché des transferts — achat immédiat + enchères entre joueurs.
@@ -143,6 +144,7 @@ export default function Marche() {
           </button>
         </div>
       </header>
+      <PageHelp topic="marche" />
       {eco.mode === 'demo' && (
         <p className="mk-demo">Mode démo : le marché tourne dans ton navigateur avec des vendeurs simulés. Avec les tables Supabase, ce sont de vrais joueurs et c'est le serveur qui valide chaque X-Coin.</p>
       )}

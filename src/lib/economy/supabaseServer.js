@@ -2,10 +2,12 @@
 // Adaptateur PRODUCTION : mêmes méthodes que localServer, mais tout passe par
 // Postgres (RPC SECURITY DEFINER de 20261105_economie.sql). Le client n'écrit
 // jamais un solde : il demande une action, le serveur vérifie et l'exécute.
-// Activer avec VITE_ECONOMY=supabase dans .env.local, après avoir exécuté les migrations.
+// Actif dès que la connexion Discord est active (voir economy/index.js), après avoir
+// exécuté les migrations dans Supabase (20261105 → 20261110).
 // ============================================================================
 import { supabase } from '../../supabase'
 import { EcoError } from './localServer'
+import { applyServerBoosters } from '../boosterStock'
 
 const ROLE_POSITIONS = {
   GK: ['GK', 'GB', 'G'],
@@ -46,6 +48,10 @@ export const supabaseServer = {
           lastBalance = row.balance
           emit({ type: 'coins', delta, balance: row.balance })
         })
+        // stock de boosters modifié ailleurs (autre appareil, autre onglet)
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_boosters', filter: `user_id=eq.${me}` }, () => {
+          this.boosterState().catch(() => {})
+        })
         .subscribe()
     }
     return w
@@ -63,9 +69,17 @@ export const supabaseServer = {
   },
 
   async inventory() {
-    const { data, error } = await supabase.from('user_cards').select('id, listing_id, source, obtained_at, cards(*)').order('obtained_at', { ascending: false })
-    fail(error)
-    return (data || []).map((r) => ({ uid: r.id, card: r.cards, at: Date.parse(r.obtained_at), source: r.source, listingId: r.listing_id }))
+    // Supabase renvoie 1 000 lignes maximum par requête : on lit la collection par pages
+    const PAGE = 1000
+    const rows = []
+    for (let from = 0; from < 100000; from += PAGE) {
+      const { data, error } = await supabase.from('user_cards').select('id, listing_id, source, obtained_at, cards(*)')
+        .order('obtained_at', { ascending: false }).order('id').range(from, from + PAGE - 1)
+      fail(error)
+      rows.push(...(data || []))
+      if (!data || data.length < PAGE) break
+    }
+    return rows.map((r) => ({ uid: r.id, card: r.cards, at: Date.parse(r.obtained_at), source: r.source, listingId: r.listing_id }))
   },
 
   // Filtrage côté serveur (index SQL) : tient la charge avec 18 000+ joueurs.
@@ -91,10 +105,41 @@ export const supabaseServer = {
   },
 
   async addCards() {
-    // En production, les cartes d'un booster sont tirées ET insérées par une Edge Function
-    // (le client ne peut pas écrire dans user_cards). Rien à faire ici.
+    // En ligne, le client ne crée jamais de carte : elles viennent d'open_boosters (tirage serveur).
   },
-  async buyBoosters(n, requestId) { const { error } = await supabase.rpc('buy_boosters', { p_n: n, p_request_id: requestId }); fail(error); return this.wallet() },
+  async boosterState() {
+    const { data, error } = await supabase.rpc('booster_state'); fail(error)
+    applyServerBoosters(data)
+    return data
+  },
+  // Ouverture : le SERVEUR tire les raretés et les cartes, applique les garanties et décompte le stock.
+  async openBoosters(n, requestId) {
+    const { data, error } = await supabase.rpc('open_boosters', { p_n: n, p_request_id: requestId }); fail(error)
+    applyServerBoosters(data.state)
+    emit({ type: 'inventory', n: data.cards?.length || 0 })
+    return {
+      cards: (data.cards || []).map((x) => ({ ...x.card, uid: x.uid })),
+      forced: data.forced || [], pity: data.state?.pity, opened: data.state?.opened,
+    }
+  },
+  async buyBoosters(n, requestId) {
+    const { error } = await supabase.rpc('buy_boosters', { p_n: n, p_request_id: requestId }); fail(error)
+    await this.boosterState().catch(() => {})
+    return this.wallet()
+  },
+  // Match contre l'IA : enregistré au coup d'envoi, récompensé une seule fois à la fin.
+  async matchStart(squad) {
+    const { data, error } = await supabase.rpc('arena_ai_start', { p_squad: squad || {} }); fail(error)
+    return data
+  },
+  async matchFinish(id, { win, home, away, perfect = 0, goals = [] }) {
+    if (!id) throw new EcoError('not_found', 'Match non enregistré (connexion perdue au coup d\'envoi)')
+    const { data, error } = await supabase.rpc('arena_ai_finish', { p_match: id, p_win: !!win, p_home: home, p_away: away, p_perfect: perfect, p_goals: goals }); fail(error)
+    applyServerBoosters(data.state)
+    try { localStorage.setItem('footx_win_streak', String(data.streak || 0)) } catch { /* rien */ }
+    this.wallet().catch(() => {})
+    return data
+  },
   async claimMatchReward(matchId) { const { data, error } = await supabase.rpc('claim_match_reward', { p_match: matchId }); fail(error); return { amount: data } },
   async quicksell(uids) { const { error } = await supabase.rpc('quicksell_cards', { p_cards: uids }); fail(error); await this.wallet() },
   async createListing(uid, start, buyNow, hours) { const { data, error } = await supabase.rpc('create_listing', { p_card: uid, p_start: start, p_buy_now: buyNow, p_hours: hours }); fail(error); return data },

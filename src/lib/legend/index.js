@@ -1,9 +1,9 @@
 // ============================================================================
-// Mode Carrière "Légende" — état du joueur (mode démo : navigateur).
-// En production, les mêmes règles sont appliquées par Postgres (create_avatar,
-// unlock_skill, XP versée par trigger à la fin d'un match validé).
+// Mode Carrière — ton joueur (avatar, XP, arbre de compétences).
+// Joueur connecté : sauvegardé en ligne à chaque changement (save_put, migration 20261110).
 // ============================================================================
 import { useEffect, useState } from 'react'
+import { cloudSave, onCloud } from '../cloud'
 import {
   BASE_STAT, LEGEND_CLUB, LEGEND_ID, NODE, POSITIONS, SKILL_TREE, STATS, TALENTS, TIERS,
   levelFromXp, tierFor, ultimateFor,
@@ -22,9 +22,12 @@ const st = () => {
 }
 const save = (detail) => {
   try { localStorage.setItem(KEY, JSON.stringify(st())) } catch { /* stockage indisponible */ }
+  cloudSave('legend', st()) // sauvegarde en ligne (connecté)
   window.dispatchEvent(new CustomEvent(EVENT, { detail }))
 }
 
+// la partie chargée depuis le serveur remplace la copie en mémoire
+if (typeof window !== 'undefined') onCloud((e) => { if (e?.type === 'boot') state = null })
 // ---------------------------------------------------------------- calculs dérivés
 export function derive(s = st()) {
   if (!s.avatar) return null

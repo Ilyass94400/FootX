@@ -16,6 +16,7 @@ import ContractLetter from '../components/career/ContractLetter'
 import PackFx from '../components/PackFx'
 import '../components/pack.css'
 import './carriere.css'
+import PageHelp from '../components/PageHelp'
 
 // ============================================================================
 // Mode Carrière Solo « L'Ascension » : un seul joueur, toute une carrière.
@@ -194,6 +195,7 @@ function Hub({ c, clubs }) {
             </button>
           </div>
         </header>
+        <PageHelp topic="carriere" />
 
         <div className="cr-grid">
           {/* ------------------------------------------------ le casier */}

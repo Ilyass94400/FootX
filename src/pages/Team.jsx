@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { supabase } from '../supabase'
+import { useOwned } from '../lib/collection'
 import { getBorderColor, RARITIES, RARITY_LABEL } from '../lib/rarity'
 import { roleOf, cardRating, fitsSlot, SLOTS } from '../lib/collectif'
 import { useTeam } from '../lib/useTeam'
@@ -10,11 +10,12 @@ import HeroCard from '../components/HeroCard'
 import PackFx from '../components/PackFx'
 import '../components/pack.css'
 import './team.css'
+import PageHelp from '../components/PageHelp'
 
 // ============================================================================
 // Team Builder de l'Arène — demi-terrain 5v5, liens de Collectif, plafonds de rareté.
-// Collection : pour l'instant le catalogue `cards`. Dans le jeu final, remplacer la
-// requête par les cartes possédées (table user_cards filtrée sur le joueur).
+// Collection : uniquement les cartes que le joueur POSSÈDE (une par joueur, doublons regroupés).
+// En ligne, le serveur refuse aussi toute carte non possédée (squad_save).
 // ============================================================================
 
 // Positions sur le demi-terrain (en % ; on attaque vers le haut).
@@ -27,7 +28,13 @@ const RANK = Object.fromEntries(RARITIES.map((r, i) => [r, i]))
 const PAGE = 48
 
 export default function Team() {
-  const [pool, setPool] = useState(null)
+  const owned = useOwned()
+  const pool = useMemo(() => {
+    if (!owned) return null
+    const m = new Map()
+    for (const it of owned.items) if (it.card && !m.has(String(it.card.id))) m.set(String(it.card.id), it.card)
+    return [...m.values()]
+  }, [owned])
   const t = useTeam()
   const [active, setActive] = useState(null) // poste sélectionné
   const [hover, setHover] = useState(null) // carte survolée (aperçu des liens)
@@ -42,14 +49,6 @@ export default function Team() {
   const fx = useRef(null)
   const lastPlaced = useRef(null)
   const toastTimer = useRef(0)
-
-  useEffect(() => {
-    let alive = true
-    supabase.from('cards').select('*').limit(400)
-      .then(({ data }) => { if (alive) setPool(data || []) })
-      .catch(() => { if (alive) setPool([]) })
-    return () => { alive = false }
-  }, [])
 
   const showError = useCallback((res, card) => {
     clearTimeout(toastTimer.current)
@@ -162,6 +161,7 @@ export default function Team() {
           </button>
         </div>
       </header>
+      <PageHelp topic="equipe" />
 
       <div className="tb-layout">
         {/* ------------------------------------------------------------ terrain */}

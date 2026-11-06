@@ -1,12 +1,13 @@
 // ============================================================================
-// Mode Carrière Solo « L'Ascension » — sauvegarde locale (mode démo).
-// En production, les mêmes règles sont appliquées par Postgres (migration
-// 20261108_carriere.sql : career_save, career_stats, career_skills…).
+// Mode Carrière Solo « L'Ascension ».
+// Joueur connecté : la partie est sauvegardée en ligne à chaque changement
+// (save_put, migration 20261110). Mode solo : ni X-Coins ni cartes en jeu.
 //
 // Le joueur (avatar, XP, arbre, Ultimes) est géré par lib/legend ; ici on gère
 // sa vie de footballeur : club, contrat, calendrier, notes, courrier, mercato.
 // ============================================================================
 import { useEffect, useState } from 'react'
+import { cloudSave, onCloud } from '../cloud'
 import { createAvatar, derive, grantXp, legendCard, resetLegend } from '../legend'
 import { hashStr } from './crest'
 import { findClub } from './clubs'
@@ -24,8 +25,11 @@ const st = () => {
 }
 const save = (detail) => {
   try { localStorage.setItem(KEY, JSON.stringify(st())) } catch { /* stockage indisponible */ }
+  cloudSave('career', st()) // sauvegarde en ligne (connecté)
   window.dispatchEvent(new CustomEvent(EVENT, { detail }))
 }
+// la partie chargée depuis le serveur remplace la copie en mémoire
+if (typeof window !== 'undefined') onCloud((e) => { if (e?.type === 'boot') state = null })
 export class CareerError extends Error {}
 
 // ---------------------------------------------------------------- calendrier

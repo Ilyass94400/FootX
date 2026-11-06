@@ -1,18 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../supabase'
 import { getBorderColor, RARITIES, RARITY_LABEL } from '../lib/rarity'
-import { useStock, spendStock, addStock, formatTime, MAX_STOCK } from '../lib/boosterStock'
+import { useStock, addStock, formatTime, MAX_STOCK } from '../lib/boosterStock'
 import PlayerCard from '../components/PlayerCard'
 import PackOpening from '../components/PackOpening'
 import BoosterPack from '../components/BoosterPack'
-import { eco } from '../lib/economy'
+import { eco, LIVE } from '../lib/economy'
 import { ECONOMY, fmtCoins } from '../lib/economy/config'
 import { spendSound } from '../lib/economy/fx'
 import { useWallet } from '../lib/economy'
 import { CoinIcon } from '../components/CoinCounter'
-import { rollPack, makePicker, loadPity, savePity, FEATURED_RATES, FILLER_RATES, PITY, PACK_SIZE, effectiveRate } from '../lib/drops'
+import { loadPity, FEATURED_RATES, FILLER_RATES, PITY, PACK_SIZE, effectiveRate } from '../lib/drops'
 import { track } from '../lib/quests'
 import './boosters.css'
+import PageHelp from '../components/PageHelp'
 
 const RANK = { commune: 1, atypique: 2, rare: 3, epique: 4, legendaire: 5, iconique: 6 }
 const rank = (c) => RANK[c.rarity?.toLowerCase()] || 0
@@ -49,6 +50,8 @@ function Boosters() {
   })
 
   useEffect(() => {
+    // en ligne, le tirage se fait sur le serveur : inutile de télécharger tout le catalogue
+    if (LIVE) { setLoading(false); return }
     loadCatalogue().then((cards) => { setCatalogue(cards); setLoading(false) })
   }, [])
 
@@ -56,38 +59,33 @@ function Boosters() {
 
   // Pity : boosters ouverts depuis la dernière Iconique / la dernière Épique+
   const [pity, setPity] = useState(loadPity)
-  const pickCard = useMemo(() => makePicker(catalogue), [catalogue])
 
   const maxQty = Math.min(10, MAX_STOCK, stock.n)
   const q = Math.max(1, Math.min(qty, maxQty || 1))
 
-  // Un booster = 1 carte vedette (taux de drop + pity) + 9 cartes de complément (voir lib/drops.js)
-  const openOne = (p) => {
-    const r = rollPack(p)
-    return { cards: r.rarities.map(pickCard), pity: r.pity }
-  }
 
-  const buyBooster = () => {
+  const [opening, setOpening] = useState(false) // attente du tirage (serveur)
+  const [openError, setOpenError] = useState(null)
+  const buyBooster = async () => {
     // autorisé depuis l'écran d'accueil OU depuis le récap ("Ouvrir un autre")
-    if (!catalogue.length || (step !== 'idle' && step !== 'premium') || stock.n < 1) return
-    if (!spendStock(q)) return
-
-    const all = []
-    let p = pity
-    for (let i = 1; i <= q; i++) {
-      const o = openOne(p)
-      all.push(...o.cards)
-      p = o.pity
+    if (opening || (!LIVE && !catalogue.length) || (step !== 'idle' && step !== 'premium') || stock.n < 1) return
+    setOpening(true)
+    setOpenError(null)
+    let res
+    try {
+      // en ligne : le serveur tire les cartes, applique les garanties et décompte le stock
+      res = await eco.openBoosters(q, 'open-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8), catalogue)
+    } catch (e) {
+      setOpenError(e.message || 'Ouverture impossible')
+      setOpening(false)
+      return
     }
-    setPity(p)
-    savePity(p)
+    setOpening(false)
+    if (res.pity) setPity(res.pity)
     track('booster_opened', q)
-    const newCount = boosterCount + q
-    setBoosterCount(newCount)
-    localStorage.setItem('footx_booster_count', newCount.toString())
+    if (res.opened != null) setBoosterCount(res.opened)
 
-    all.sort((a, b) => rank(b) - rank(a))
-    eco.addCards(all, 'pack') // les cartes tirées rejoignent le club (vendables sur le marché)
+    const all = [...res.cards].sort((a, b) => rank(b) - rank(a))
     setPulledCards(all)
     setOpenedCount(q)
     // ouverture premium carte par carte (1 ou plusieurs packs)
@@ -132,6 +130,7 @@ function Boosters() {
   return (
     <div className={'boosters-page ' + (step === 'opening' ? 'screen-shake' : '')}>
       <PityBar count={boosterCount} pity={pity} />
+      {step === 'idle' && <PageHelp topic="boosters" />}
 
       {(step === 'opening' || step === 'walkout') && (
         <div className="flash-overlay" style={{ '--rarity-color': getBestRarityColor() }}></div>
@@ -157,7 +156,7 @@ function Boosters() {
             <div className="stock-line">
               <span><b>{stock.n}</b>/{MAX_STOCK} booster{stock.n > 1 ? 's' : ''} dispo</span>
               {stock.nextIn !== null && <small>+1 dans {formatTime(stock.nextIn)}</small>}
-              {import.meta.env.DEV && (
+              {import.meta.env.DEV && !LIVE && (
                 <button className="link" onClick={() => addStock(10)} title="Visible seulement en dev">+10 (test)</button>
               )}
             </div>
@@ -191,9 +190,10 @@ function Boosters() {
                   Ouverture rapide <small>(sans animation)</small>
                 </label>
 
-                <button className="btn open-btn" onClick={buyBooster} disabled={loading}>
-                  {loading ? 'Chargement…' : q > 1 ? `Ouvrir ${q} boosters` : 'Ouvrir le booster'}
+                <button className="btn open-btn" onClick={buyBooster} disabled={loading || opening}>
+                  {loading ? 'Chargement…' : opening ? 'Tirage des cartes…' : q > 1 ? `Ouvrir ${q} boosters` : 'Ouvrir le booster'}
                 </button>
+                {openError && <p className="open-error" role="alert">{openError}</p>}
               </>
             ) : (
               <p className="muted">Plus de boosters. Le prochain arrive dans {formatTime(stock.nextIn)}.</p>
@@ -459,8 +459,7 @@ function BuyWithCoins() {
     if (state !== 'confirm') { setState('confirm'); return }
     setState('busy')
     try {
-      await eco.buyBoosters(1, 'b' + Date.now())
-      addStock(1)
+      await eco.buyBoosters(1, 'b' + Date.now()) // le stock est mis à jour par l'économie (serveur en ligne)
       spendSound()
       setState('done')
     } catch (e) { setMsg(e.message); setState('error') }

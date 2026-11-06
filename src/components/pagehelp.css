@@ -1,0 +1,14 @@
+/* Petite aide repliable en haut des pages (ph-) */
+.ph { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 2px 0 6px; }
+.ph-btn { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px 0 5px; border-radius: 99px; cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, .1); background: rgba(255, 255, 255, .03); color: #a9a89e; font: inherit; font-size: 12.5px; font-weight: 700; transition: color .2s, border-color .2s, background .2s; }
+.ph-btn:hover, .ph.open .ph-btn { color: #fff; border-color: rgba(228, 255, 60, .45); background: rgba(228, 255, 60, .06); }
+.ph-btn i { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font-style: normal; font-weight: 900; font-size: 12.5px; background: #e4ff3c; color: #0b0c08; }
+.ph-chev { width: 7px; height: 7px; margin-left: 2px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; rotate: 45deg; translate: 0 -2px; transition: rotate .2s, translate .2s; }
+.ph.open .ph-chev { rotate: 225deg; translate: 0 2px; }
+.ph-tips { display: grid; gap: 6px; max-width: 720px; margin: 0; padding: 12px 16px 12px 30px; border-radius: 14px; background: #121310; border: 1px solid rgba(255, 255, 255, .07); color: #c9c8bf; font-size: 13.5px; line-height: 1.45; }
+.ph-tips li { animation: ph-in .25s calc(var(--i) * 40ms) both; }
+.ph-tips li::marker { color: #e4ff3c; }
+.ph-tips b { color: #fff; }
+@keyframes ph-in { from { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .ph-tips li { animation: none; } }

@@ -614,7 +614,9 @@ function FullTime({ s, reward, onRematch }) {
             {reward?.coins > 0 && <span className="mx-chip coins">+{reward.coins} X-Coins</span>}
             {reward?.capped && <span className="mx-chip">Gains du jour plafonnés</span>}
             {reward?.booster && <span className="mx-chip gold">+1 booster gagné</span>}
-            {win && reward && !reward.booster && <span className="mx-chip">{reward.full ? 'Stock de boosters plein (10/10)' : 'Récompenses du jour atteintes'}</span>}
+            {reward?.pending && <span className="mx-chip">Enregistrement du match…</span>}
+            {reward?.error && <span className="mx-chip">{reward.error}</span>}
+            {win && reward && !reward.pending && !reward.error && !reward.booster && <span className="mx-chip">{reward.full ? 'Stock de boosters plein (10/10)' : 'Boosters de victoire du jour atteints'}</span>}
             {reward?.streak >= 2 && <span className="mx-chip hot">Série : {reward.streak} victoires</span>}
           </div>
           {insight && (

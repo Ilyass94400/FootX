@@ -6,6 +6,7 @@ import { CoinIcon } from '../components/CoinCounter'
 import PackFx from '../components/PackFx'
 import '../components/pack.css'
 import './defis.css'
+import PageHelp from '../components/PageHelp'
 
 // ============================================================================
 // Centre des Défis — quotidiens, hebdomadaires, carrière.
@@ -93,6 +94,7 @@ export default function Defis() {
           <p className="qd-none">Aucune récompense en attente. Termine un défi pour en débloquer.</p>
         )}
       </header>
+      <PageHelp topic="defis" />
 
       <nav className="qd-tabs" role="tablist">
         {TABS.map((t) => {

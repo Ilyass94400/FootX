@@ -9,7 +9,8 @@
 // ============================================================================
 import { ECONOMY, RARITY_ECO, ecoOf, minNextBid, afterTax, suggestedPrice } from './config'
 import { roleOf } from '../collectif'
-import { getStock, MAX_STOCK } from '../boosterStock'
+import { getStock, spendStock, addStock, MAX_STOCK } from '../boosterStock'
+import { rollPack, makePicker, loadPity, savePity } from '../drops'
 
 const KEY = 'footx_eco'
 const ME = 'me'
@@ -146,6 +147,7 @@ export const localServer = {
     const ev = move(-n * ECONOMY.boosterPrice, 'booster', String(n))
     if (requestId) s.requests[requestId] = true
     save([ev])
+    addStock(n)
     return this.wallet()
   },
 
@@ -172,6 +174,61 @@ export const localServer = {
     s.requests[key] = true
     save([ev])
     return { amount }
+  },
+
+  // Ouverture de boosters (démo : tirage dans le navigateur, mêmes règles que open_boosters en SQL)
+  async openBoosters(n, requestId, catalogue = catalogueRef) {
+    if (!(n >= 1 && n <= 10)) throw new EcoError('invalid', 'Quantité invalide')
+    if (!catalogue?.length) throw new EcoError('empty_catalogue', 'Catalogue en cours de chargement')
+    if (!spendStock(n)) throw new EcoError('no_stock', 'Pas assez de boosters')
+    const pick = makePicker(catalogue)
+    let pity = loadPity()
+    const cards = []
+    const forced = []
+    for (let i = 0; i < n; i++) {
+      const r = rollPack(pity)
+      cards.push(...r.rarities.map(pick))
+      forced.push(r.forced)
+      pity = r.pity
+    }
+    savePity(pity)
+    let opened = 0
+    try {
+      opened = (parseInt(localStorage.getItem('footx_booster_count') || '0', 10) || 0) + n
+      localStorage.setItem('footx_booster_count', String(opened))
+    } catch { /* stockage indisponible */ }
+    await this.addCards(cards, 'pack')
+    return { cards, forced, pity, opened }
+  },
+
+  // Match contre l'IA (démo) : rien à réserver côté serveur
+  async matchStart() {
+    return { id: 'local-' + uid(), seed: null }
+  },
+
+  // Fin de match (démo) : série, booster de victoire (5/jour), X-Coins plafonnés — comme arena_ai_finish
+  async matchFinish(id, { win }) {
+    const num = (k) => { try { return parseFloat(localStorage.getItem(k)) || 0 } catch { return 0 } }
+    const streak = win ? num('footx_win_streak') + 1 : 0
+    try { localStorage.setItem('footx_win_streak', String(streak)) } catch { /* stockage indisponible */ }
+    let booster = false
+    let full = false
+    let left = null
+    if (win) {
+      const today = new Date().toISOString().slice(0, 10)
+      let r = {}
+      try { r = JSON.parse(localStorage.getItem('footx_match_rewards') || '{}') } catch { /* rien */ }
+      const got = r.day === today ? r.n : 0
+      if (got >= ECONOMY.winBoostersPerDay) left = 0
+      else if (!addStock(1)) { full = true; left = ECONOMY.winBoostersPerDay - got }
+      else {
+        booster = true
+        left = ECONOMY.winBoostersPerDay - got - 1
+        try { localStorage.setItem('footx_match_rewards', JSON.stringify({ day: today, n: got + 1 })) } catch { /* rien */ }
+      }
+    }
+    const c = await this.claimMatchReward(id, win)
+    return { coins: c.amount || 0, capped: !!c.capped, booster, full, left, streak }
   },
 
   async quicksell(uids) {

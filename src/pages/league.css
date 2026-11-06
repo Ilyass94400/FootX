@@ -26,6 +26,17 @@
 .lg-invite button { height: 36px; padding: 0 14px; border-radius: 10px; border: none; background: var(--gold); color: var(--ink); font-family: var(--title); font-weight: 900; font-size: 15px; letter-spacing: .05em; text-transform: uppercase; cursor: pointer; transition: transform .15s; }
 .lg-invite button:active { transform: scale(.95); }
 .lg-invite button.ok { background: #2ed573; }
+.lg-join-open { align-self: flex-start; margin-top: 8px; padding: 0; border: none; background: none; color: #c9c8bf; font: inherit; font-size: 13.5px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.lg-join-open:hover { color: #fff; }
+.lg-join { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.lg-join input { width: 130px; height: 38px; padding: 0 12px; border-radius: 10px; border: 1.5px solid rgba(242, 194, 48, .45); background: #0d0e0b; color: #fff; font-family: var(--title); font-weight: 900; font-size: 20px; letter-spacing: .2em; text-transform: uppercase; outline: none; }
+.lg-join input:focus { border-color: var(--gold); }
+.lg-join button { height: 38px; padding: 0 14px; border-radius: 10px; border: none; background: var(--gold); color: var(--ink); font-family: var(--title); font-weight: 900; font-size: 15px; letter-spacing: .05em; text-transform: uppercase; cursor: pointer; }
+.lg-join button:disabled { opacity: .5; cursor: default; }
+.lg-join button.ghost { background: none; color: #c9c8bf; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .15); }
+.lg-join span { flex-basis: 100%; font-size: 13.5px; font-weight: 700; }
+.lg-join span.ok { color: #2ed573; } .lg-join span.ko { color: #ff6b6b; }
+.lg-error { margin: 8px 0 0; padding: 8px 12px; border-radius: 10px; background: rgba(255, 71, 87, .12); border: 1px solid rgba(255, 71, 87, .4); color: #ffb3b9; font-size: 13.5px; font-weight: 700; }
 
 .lg-clock { display: flex; flex-direction: column; gap: 10px; padding: 18px 20px; border-radius: 16px; background: rgba(0, 0, 0, .35); border: 1px solid var(--line); min-width: 0; }
 .lg-clock-l { font-size: 11.5px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; color: #a9a89e; }
@@ -186,7 +197,7 @@
 .lg-rank li.me .pos { color: var(--gold); }
 .lg-rank img, .lg-rank .av { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: rgba(255, 255, 255, .06); font-weight: 800; color: #a9a89e; }
 .lg-rank strong { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lg-rank .st { font-size: 12.5px; color: #8e8d84; white-space: nowrap; }
+.lg-rank .st { font-size: 12.5px; color: #8e8d84; white-space: nowrap; position: static; width: auto; aspect-ratio: auto; max-height: none; } /* neutralise .st de l'arbre de compétences */
 .lg-rank .pts { font-family: var(--title); font-weight: 900; font-size: 24px; }
 .lg-rank .pts small { font-size: 12px; color: #8e8d84; }
 

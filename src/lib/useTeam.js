@@ -1,8 +1,10 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { SLOTS, emptyTeam, fitsSlot, computeCollectif, autoFill } from './collectif'
 import { canPlace, computeChemistry, validateTeam } from './chemistry'
+import { cloudSquad } from './cloud'
 
-// La compo est sauvegardée dans le navigateur : le match et la Ligue l'utilisent directement.
+// La compo : copie locale (lue par le match et la Ligue) + sauvegarde en ligne (squad_save)
+// quand le joueur est connecté. Au démarrage, la copie locale est remplie depuis le serveur.
 const TEAM_KEY = 'footx_team'
 export function loadSavedTeam() {
   try {
@@ -31,9 +33,14 @@ export function useTeam(initial) {
   const [team, setTeam] = useState(() => initial || loadSavedTeam() || emptyTeam())
   const ref = useRef(team)
 
+  const first = useRef(true)
   useEffect(() => {
     ref.current = team
     try { localStorage.setItem(TEAM_KEY, JSON.stringify(team)) } catch { /* stockage indisponible */ }
+    if (first.current) { first.current = false; return } // rien n'a changé : pas d'envoi au chargement
+    const chem = computeChemistry(team)
+    const best = Math.max(0, ...SLOTS.map((sl) => chem.cards[sl.id]?.chem ?? 0))
+    cloudSquad(team, best, SLOTS.every((sl) => team[sl.id]) ? chem.total : 0)
   }, [team])
 
   const commit = useCallback((next) => { ref.current = next; setTeam(next) }, [])

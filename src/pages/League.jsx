@@ -10,6 +10,7 @@ import HeroCard from '../components/HeroCard'
 import PackFx from '../components/PackFx'
 import '../components/pack.css'
 import './league.css'
+import PageHelp from '../components/PageHelp'
 
 // ============================================================================
 // Ma Ligue — fantasy asynchrone du week-end.
@@ -64,13 +65,16 @@ export default function League({ session }) {
 
   return (
     <div className="lg">
+      <PageHelp topic="ligue" />
       {/* ------------------------------------------------------------ en-tête */}
       <section className="lg-hero">
         <div className="lg-hero-l">
           <button className="lg-back" onClick={(e) => warpTo('accueil', { color: '#e4ff3c', x: e.clientX, y: e.clientY })}>← Menu</button>
           <span className="lg-kicker">Ma Ligue · Saison 1 · Journée {lg.gw.number}</span>
-          <LeagueName value={lg.league.name} onSave={lg.rename} />
+          <LeagueName value={lg.league.name} onSave={lg.rename} canEdit={lg.league.owner !== false} />
           <Invite code={lg.league.code} />
+          {lg.live && <JoinLeague onJoin={lg.join} />}
+          {lg.error && <p className="lg-error" role="alert">{lg.error}</p>}
         </div>
         <div className="lg-clock">
           <span className="lg-clock-l">{phaseLabel}</span>
@@ -145,7 +149,7 @@ export default function League({ session }) {
 
       {complete && <Simulation team={team} cap={cap} gw={lg.gw.number} />}
 
-      <Standings name={name} avatar={avatar} code={lg.league.code} gw={lg.gw.number} locked={locked} />
+      <Standings name={name} avatar={avatar} code={lg.league.code} gw={lg.gw.number} locked={locked} members={lg.league.members} />
     </div>
   )
 }
@@ -173,7 +177,7 @@ function Slot({ id, card, captain, locked, onCaptain }) {
   )
 }
 
-function LeagueName({ value, onSave }) {
+function LeagueName({ value, onSave, canEdit = true }) {
   const [edit, setEdit] = useState(false)
   const [v, setV] = useState(value)
   useEffect(() => setV(value), [value])
@@ -185,9 +189,11 @@ function LeagueName({ value, onSave }) {
   ) : (
     <h1 className="lg-name">
       {value}
-      <button className="lg-pen" onClick={() => setEdit(true)} aria-label="Renommer la ligue">
-        <svg viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /></svg>
-      </button>
+      {canEdit && (
+        <button className="lg-pen" onClick={() => setEdit(true)} aria-label="Renommer la ligue">
+          <svg viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /></svg>
+        </button>
+      )}
     </h1>
   )
 }
@@ -208,6 +214,33 @@ function Invite({ code }) {
       <b ref={ref}>{code}</b>
       <button onClick={copy} className={ok ? 'ok' : ''}>{ok ? 'Copié !' : 'Copier'}</button>
     </div>
+  )
+}
+
+// Rejoindre la ligue d'un ami (son code d'invitation)
+function JoinLeague({ onJoin }) {
+  const [open, setOpen] = useState(false)
+  const [code, setCode] = useState('')
+  const [state, setState] = useState({ busy: false, msg: null, ok: false })
+  const submit = async (e) => {
+    e.preventDefault()
+    if (code.trim().length < 4 || state.busy) return
+    setState({ busy: true, msg: null, ok: false })
+    try {
+      const l = await onJoin(code)
+      setState({ busy: false, msg: `Bienvenue dans « ${l?.name || 'la ligue'} » !`, ok: true })
+      setCode('')
+      setTimeout(() => setOpen(false), 1800)
+    } catch (err) { setState({ busy: false, msg: err.message, ok: false }) }
+  }
+  if (!open) return <button className="lg-join-open" onClick={() => setOpen(true)}>Rejoindre la ligue d'un ami</button>
+  return (
+    <form className="lg-join" onSubmit={submit}>
+      <input autoFocus value={code} maxLength={8} placeholder="CODE" onChange={(e) => setCode(e.target.value.toUpperCase())} aria-label="Code de la ligue" />
+      <button disabled={state.busy || code.trim().length < 4}>{state.busy ? '…' : 'Rejoindre'}</button>
+      <button type="button" className="ghost" onClick={() => setOpen(false)}>Annuler</button>
+      {state.msg && <span className={state.ok ? 'ok' : 'ko'}>{state.msg}</span>}
+    </form>
   )
 }
 
@@ -401,7 +434,12 @@ function CountUp({ to, ms = 700 }) {
   return fmt(v)
 }
 
-function Standings({ name, avatar, code, gw, locked }) {
+function Standings({ name, avatar, code, gw, locked, members }) {
+  // En ligne : les vrais membres de la ligue. Démo : toi seul.
+  const rows = members?.length
+    ? [...members].sort((x, y) => (y.points || 0) - (x.points || 0) || (y.me ? 1 : 0) - (x.me ? 1 : 0))
+    : [{ id: 'me', name, avatar, me: true, points: 0, locked }]
+  const free = Math.max(0, 5 - rows.length)
   return (
     <section className="lg-standings">
       <div className="lg-sim-head">
@@ -411,16 +449,18 @@ function Standings({ name, avatar, code, gw, locked }) {
         </div>
       </div>
       <ol className="lg-rank">
-        <li className="me">
-          <span className="pos">1</span>
-          {avatar ? <img src={avatar} alt="" /> : <span className="av">{String(name)[0]}</span>}
-          <strong>{name}</strong>
-          <span className="st">{locked ? `Équipe verrouillée · J${gw}` : 'Équipe à verrouiller'}</span>
-          <b className="pts">0 <small>pts</small></b>
-        </li>
-        {[2, 3, 4, 5].map((n) => (
-          <li key={n} className="free">
-            <span className="pos">{n}</span>
+        {rows.map((m, i) => (
+          <li key={m.id || i} className={m.me ? 'me' : ''}>
+            <span className="pos">{i + 1}</span>
+            {m.avatar ? <img src={m.avatar} alt="" /> : <span className="av">{String(m.name || '?')[0]}</span>}
+            <strong>{m.name}{m.me ? ' (toi)' : ''}</strong>
+            <span className="st">{(m.me ? locked : m.locked) ? `Équipe verrouillée · J${gw}` : 'Équipe à verrouiller'}</span>
+            <b className="pts">{Math.round((m.points || 0) * 10) / 10} <small>pts</small></b>
+          </li>
+        ))}
+        {Array.from({ length: free }, (_, n) => (
+          <li key={'free' + n} className="free">
+            <span className="pos">{rows.length + n + 1}</span>
             <span className="av">+</span>
             <strong>Place libre</strong>
             <span className="st">Partage le code {code}</span>

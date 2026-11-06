@@ -83,15 +83,23 @@ export function useQuests() {
   const [list, setList] = useState(null)
   useEffect(() => {
     let alive = true
-    const refresh = () => listQuests().then((l) => { if (alive) setList(l) }).catch(() => { if (alive) setList([]) })
-    refresh()
+    const load = () => listQuests().then((l) => { if (alive) setList(l) }).catch(() => { if (alive) setList([]) })
+    // ouvrir 10 boosters = des dizaines de mises à jour de défis : on regroupe (1 rechargement max / 1,5 s)
+    let deb = 0
+    const refresh = () => { clearTimeout(deb); deb = setTimeout(load, 1500) }
+    load()
     window.addEventListener(EVENT, refresh)
-    const t = setInterval(refresh, 30000) // passage de minuit / du lundi
+    const t = setInterval(load, 30000) // passage de minuit / du lundi
     let ch = null
-    if (live()) {
-      ch = supabase.channel('quests').on('postgres_changes', { event: '*', schema: 'public', table: 'user_quests' }, refresh).subscribe()
+    let me = null
+    try { me = localStorage.getItem('footx_owner') } catch { /* rien */ }
+    if (live() && me) {
+      // uniquement MES défis (sans filtre, chaque joueur recevrait les changements de tous les autres)
+      ch = supabase.channel('quests-' + me + '-' + Math.random().toString(36).slice(2, 7))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'user_quests', filter: `user_id=eq.${me}` }, refresh)
+        .subscribe()
     }
-    return () => { alive = false; window.removeEventListener(EVENT, refresh); clearInterval(t); if (ch) supabase.removeChannel(ch) }
+    return () => { alive = false; clearTimeout(deb); window.removeEventListener(EVENT, refresh); clearInterval(t); if (ch) supabase.removeChannel(ch) }
   }, [])
   return list
 }
