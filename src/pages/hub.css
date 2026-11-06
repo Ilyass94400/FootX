@@ -1,5 +1,5 @@
 /* ============================================================================
-   Menu principal (hb-) — deux portails : L'Arène / Ma Ligue.
+   Accueil (hb-) — deux portails : Boosters / Jouer (+ scènes Arène et Ligue réutilisées par la page Jouer).
    ============================================================================ */
 .hb { --ink: #0b0c08; display: flex; flex-direction: column; gap: 22px; }
 
@@ -10,7 +10,7 @@
 .hb-lede { font-family: var(--title); font-weight: 800; font-size: 20px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 
 /* ------------------------------------------------------------------ portails */
-.hb-portals { display: grid; grid-template-columns: 1.12fr 1fr; gap: 18px; }
+.hb-portals { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 .hb-portal { --tx: 0deg; --ty: 0deg; --px: 50%; --py: 40%; --lift: 0px; position: relative; min-height: 540px; perspective: 1400px; cursor: pointer; outline: none; border-radius: 24px; }
 .hb-portal-in {
   position: absolute; inset: 0; border-radius: 24px; overflow: hidden; isolation: isolate;
@@ -223,4 +223,61 @@
   .hb-duel, .hb-impact, .hb-impact::after, .hb-arena-scene::after, .hb-beams, .hb-fan-card > .hc, .hb-ticker-track, .hb-live, .hb-minipack i { animation: none; }
   .hb-duel-l { animation: none; transform: translateX(-112%) rotate(-6deg); }
   .hb-duel-r { animation: none; transform: translateX(12%) rotate(6deg); }
+}
+
+/* ------------------------------------------------------------------ portail Boosters */
+.hb-portal.boosters .hb-portal-in { background: radial-gradient(90% 70% at 50% 30%, #1c2208, #0a0b07 70%); }
+.hb-bst-scene { position: absolute; inset: 0; overflow: hidden; }
+.hb-bst-rays { position: absolute; left: 50%; top: 34%; width: 1000px; height: 1000px; translate: -50% -50%; opacity: .5;
+  background: repeating-conic-gradient(from 0deg, rgba(228, 255, 60, .16) 0 5deg, transparent 5deg 15deg);
+  -webkit-mask: radial-gradient(closest-side, #000 10%, transparent 70%); mask: radial-gradient(closest-side, #000 10%, transparent 70%);
+  animation: hb-bst-spin 50s linear infinite; }
+@keyframes hb-bst-spin { to { rotate: 360deg; } }
+.hb-bst-stack { position: absolute; left: 50%; top: 29%; width: 0; height: 0; }
+.hb-portal.boosters .hb-p-content h2, .hb-portal.play .hb-p-content h2 { font-size: clamp(50px, 6vw, 84px); }
+.hb-bst-p { position: absolute; left: 0; top: 0; translate: -50% -50%; transition: transform .5s cubic-bezier(.2, 1.2, .4, 1); }
+.hb-bst-p .pk { width: clamp(100px, 9.6vw, 140px); cursor: inherit; }
+.hb-bst-p.p0 { z-index: 3; filter: drop-shadow(0 30px 34px rgba(0, 0, 0, .7)) drop-shadow(0 0 30px rgba(228, 255, 60, .25)); animation: pkFloat 3.8s ease-in-out infinite; }
+.hb-bst-p.p1 { z-index: 2; transform: translateX(-44%) rotate(-12deg) scale(.88); filter: brightness(.55); }
+.hb-bst-p.p2 { z-index: 1; transform: translateX(44%) rotate(12deg) scale(.88); filter: brightness(.55); }
+.hb-bst-p.empty { filter: grayscale(1) brightness(.5); animation: none; }
+.hb-portal:hover .hb-bst-p.p1 { transform: translateX(-62%) rotate(-17deg) scale(.9); }
+.hb-portal:hover .hb-bst-p.p2 { transform: translateX(62%) rotate(17deg) scale(.9); }
+.hb-portal:hover .hb-bst-p.p0 { transform: scale(1.05); }
+
+/* ------------------------------------------------------------------ portail Jouer */
+.hb-portal.play .hb-portal-in { background: radial-gradient(60% 60% at 18% 30%, rgba(255, 77, 94, .22), transparent 70%), radial-gradient(60% 60% at 50% 20%, rgba(242, 194, 48, .16), transparent 70%), radial-gradient(60% 60% at 82% 30%, rgba(95, 211, 255, .18), transparent 70%), #0a0a09; }
+.hb-play-scene { position: absolute; inset: 0; overflow: hidden; }
+.hb-play-glow { position: absolute; inset: 0; background: linear-gradient(transparent 55%, rgba(0, 0, 0, .5)); }
+.hb-modes { --mw: clamp(100px, 9.4vw, 136px); --spread: 1; position: absolute; left: 50%; top: 27%; width: 0; height: 0; }
+.hb-mode { position: absolute; left: 0; top: 0; width: var(--mw); aspect-ratio: .74; padding: 14px 10px 12px; border-radius: 16px;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; text-align: center;
+  background: linear-gradient(165deg, color-mix(in srgb, var(--mc) 26%, #121310), #0b0b09 70%);
+  border: 2px solid color-mix(in srgb, var(--mc) 75%, transparent);
+  box-shadow: 0 24px 40px -18px rgba(0, 0, 0, .9), 0 0 34px -10px var(--mc), inset 0 1px 0 rgba(255, 255, 255, .12);
+  translate: -50% -50%;
+  transform: translateX(calc(var(--i) * var(--mw) * .92 * var(--spread))) translateY(calc(var(--i) * var(--i) * 14px)) rotate(calc(var(--i) * 9deg * var(--spread)));
+  transition: transform .5s cubic-bezier(.2, 1.2, .4, 1); animation: hb-mode-in .7s calc((var(--i) + 1) * 90ms) cubic-bezier(.2, 1.2, .4, 1) both; }
+.hb-mode.league { z-index: 2; }
+@keyframes hb-mode-in { from { opacity: 0; translate: -50% -20%; } }
+.hb-portal:hover .hb-modes { --spread: 1.18; }
+.hb-portal:hover .hb-mode.league { transform: translateY(-10px) scale(1.06); }
+.hb-mode-ico { flex: 1; display: grid; place-items: center; width: 100%; color: var(--mc); font-size: calc(var(--mw) * .42); filter: drop-shadow(0 0 16px color-mix(in srgb, var(--mc) 60%, transparent)); }
+.hb-mode-ico img { width: 64%; height: auto; }
+.hb-mode-vs { font-family: var(--title); font-style: italic; font-weight: 900; font-size: calc(var(--mw) * .36); letter-spacing: -.02em; }
+.hb-mode strong { font-family: var(--title); font-style: italic; font-weight: 900; font-size: calc(var(--mw) * .15); text-transform: uppercase; line-height: 1; color: #fff; }
+.hb-mode small { font-size: 11px; font-weight: 700; color: color-mix(in srgb, var(--mc) 70%, #fff); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+@media (max-width: 860px) {
+  .hb-bst-p .pk { width: clamp(100px, 22vw, 140px); }
+  .hb-modes { --mw: clamp(96px, 21vw, 136px); }
+}
+@media (max-width: 520px) {
+  .hb-bst-stack { top: 27%; }
+  .hb-modes { --mw: 84px; top: 21%; }
+  .hb-mode small { display: none; }
+  .hb-bst-p .pk { width: 98px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hb-bst-rays, .hb-bst-p.p0, .hb-mode { animation: none; }
 }

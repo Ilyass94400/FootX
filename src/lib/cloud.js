@@ -55,6 +55,9 @@ export function cloudBoot(session) {
   const promise = (async () => {
     const prev = read(OWNER)
     if (prev !== uid) {
+      // 1re connexion sur ce navigateur : la progression du mode démo est MISE DE CÔTÉ (pas effacée),
+      // pour pouvoir la récupérer plus tard
+      if (!prev) { const demo = read('footx_eco'); if (demo && !read('footx_demo_backup')) write('footx_demo_backup', demo) }
       for (const k of PER_USER) if (prev || !KEEP_ON_FIRST_LOGIN.includes(k)) remove(k)
       write(OWNER, uid)
     }

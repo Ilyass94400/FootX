@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { supabase } from '../supabase'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { getDiscordProfile } from '../lib/useSession'
-import { useStock } from '../lib/boosterStock'
+import { useStock, formatTime, MAX_STOCK } from '../lib/boosterStock'
+import { useOwned } from '../lib/collection'
+import { crestUrl } from '../lib/career/crest'
+import BoosterPack from '../components/BoosterPack'
 import { loadSavedTeam } from '../lib/useTeam'
-import { autoFill, SLOTS, computeCollectif, cardRating, roleOf } from '../lib/collectif'
+import { autoFill, SLOTS, computeCollectif } from '../lib/collectif'
 import { useLeague } from '../lib/league/useLeague'
 import { splitMs } from '../lib/league/scoring'
 import { warpTo } from '../lib/warp'
@@ -16,13 +18,16 @@ import '../components/pack.css'
 import './hub.css'
 
 // ============================================================================
-// Menu principal : deux portails — L'Arène (1v1, action) et Ma Ligue (fantasy du week-end).
+// Accueil : deux grands portails — Boosters et Jouer (Arène, Ligue, Carrière),
+// puis des raccourcis (Ligue, Équipe, Carrière, Collection).
+// Portail, scènes Arène/Ligue et chiffres sont aussi utilisés par la page Jouer.
 // ============================================================================
 
 const ARENA = '#ff4d5e'
 const LEAGUE = '#f2c230'
+const CAREER = '#5fd3ff'
+const LIME = '#e4ff3c'
 const DUEL_MS = 4200 // durée d'un cycle du choc de cartes (doit égaler la CSS)
-const RANK = { commune: 1, atypique: 2, rare: 3, epique: 4, legendaire: 5, iconique: 6 }
 const pad = (n) => String(n).padStart(2, '0')
 const readNum = (k) => { try { return parseFloat(localStorage.getItem(k)) || 0 } catch { return 0 } }
 function rewardsToday() {
@@ -37,15 +42,9 @@ export default function Hub({ session }) {
   const stock = useStock()
   const lg = useLeague()
   const career = useCareer()
-  const [pool, setPool] = useState([])
-
-  useEffect(() => {
-    let alive = true
-    supabase.from('cards').select('*').limit(200)
-      .then(({ data }) => { if (alive) setPool(data || []) })
-      .catch(() => {})
-    return () => { alive = false }
-  }, [])
+  const owned = useOwned()
+  // une carte par joueur possédé (doublons regroupés)
+  const pool = useMemo(() => (owned ? [...new Map(owned.items.filter((i) => i.card).map((i) => [String(i.card.id), i.card])).values()] : []), [owned])
 
   const saved = useMemo(loadSavedTeam, [])
   const hasTeam = !!saved && SLOTS.every((s) => saved[s.id])
@@ -55,15 +54,6 @@ export default function Hub({ session }) {
     return Object.fromEntries(SLOTS.map((s) => [s.id, saved?.[s.id] || auto[s.id] || null]))
   }, [hasTeam, saved, pool])
 
-  // la carte vedette de l'Arène : ton meilleur attaquant (rareté puis note)
-  const star = useMemo(() => {
-    const list = SLOTS.map((s) => team[s.id]).filter(Boolean)
-    const atk = list.filter((c) => roleOf(c.position) === 'ATT')
-    const pick = (atk.length ? atk : list).sort((a, b) => (RANK[String(b.rarity).toLowerCase()] || 0) - (RANK[String(a.rarity).toLowerCase()] || 0) || cardRating(b) - cardRating(a))
-    return pick[0] || null
-  }, [team])
-
-  const lineup = lg.lock ? lg.lock.team : team
   const collectif = useMemo(() => computeCollectif(team), [team])
   const streak = readNum('footx_win_streak')
   const won = rewardsToday()
@@ -81,53 +71,51 @@ export default function Hub({ session }) {
       </header>
 
       <div className="hb-portals">
-        {/* ------------------------------ ARÈNE ------------------------------ */}
-        <Portal kind="arena" color={ARENA} route="match" label="L'Arène">
-          <ArenaScene star={star} />
+        {/* ------------------------------ BOOSTERS ------------------------------ */}
+        <Portal kind="boosters" color={LIME} route="boosters" label="Boosters">
+          <BoostersScene n={stock.n} />
           <div className="hb-p-content">
-            <span className="hb-p-kicker"><i className="hb-live" />Mode principal · temps réel</span>
-            <h2>L'Arène</h2>
-            <p className="hb-p-sub">1 contre 1 · 3 minutes · 6 actions décisives</p>
+            <span className="hb-p-kicker"><i className="hb-live" />{stock.n > 0 ? 'Prêts à ouvrir' : 'Recharge en cours'}</span>
+            <h2>Boosters</h2>
+            <p className="hb-p-sub">10 cartes par booster, dont une vedette Rare ou mieux. Un booster de plus toutes les 10 minutes.</p>
             <div className="hb-chips">
-              <span className={'hb-chip' + (streak >= 2 ? ' hot' : '')}>
-                <b>{streak}</b> {streak > 1 ? 'victoires de suite' : 'victoire de suite'}
-              </span>
-              <span className="hb-chip"><b>{won}/5</b> boosters gagnés aujourd'hui</span>
+              <span className={'hb-chip' + (stock.n >= MAX_STOCK ? ' hot' : '')}><b>{stock.n}/{MAX_STOCK}</b> boosters prêts</span>
+              <span className="hb-chip">{stock.nextIn !== null ? <>+1 dans <b>{formatTime(stock.nextIn)}</b></> : 'Stock plein'}</span>
             </div>
-            <span className="hb-cta"><span>Entrer dans l'Arène</span><Arrow /></span>
+            <span className="hb-cta"><span>{stock.n > 0 ? (stock.n > 1 ? 'Ouvrir mes boosters' : 'Ouvrir le booster') : 'Voir les boosters'}</span><Arrow /></span>
           </div>
         </Portal>
 
-        {/* ------------------------------ LIGUE ------------------------------ */}
-        <Portal kind="league" color={LEAGUE} route="ligue" label="Ma Ligue">
-          <LeagueScene lineup={lineup} locked={!!lg.lock} />
+        {/* ------------------------------ JOUER ------------------------------ */}
+        <Portal kind="play" color={ARENA} route="jouer" label="Jouer">
+          <PlayScene
+            arena={`${streak} victoire${streak > 1 ? 's' : ''} de suite`}
+            league={lg.gw.phase !== 'open' ? 'Matchs en cours' : lg.lock ? 'Équipe verrouillée' : `Verrouillage ${t.d > 0 ? t.d + ' j ' : ''}${pad(t.h)}h${pad(t.m)}`}
+            career={career ? { club: career.clubName, line: 'Niv ' + career.player.level } : null}
+          />
           <div className="hb-p-content">
-            <span className="hb-p-kicker">Mode saison · le week-end</span>
-            <h2>Ma Ligue</h2>
-            <p className="hb-p-sub">Tes cartes marquent avec les vrais matchs. Une Légendaire compte double.</p>
-            <div className="hb-count" aria-label="Temps restant">
-              <span className="hb-count-l">{lg.gw.phase === 'open' ? (lg.lock ? 'Équipe verrouillée · coup d\'envoi dans' : 'Verrouillage dans') : 'Matchs en cours · résultats dans'}</span>
-              <div className="hb-digits">
-                {t.d > 0 && <Digit v={t.d} u="j" />}
-                <Digit v={pad(t.h)} u="h" />
-                <Digit v={pad(t.m)} u="min" />
-                <Digit v={pad(t.s)} u="s" tick />
-              </div>
+            <span className="hb-p-kicker">3 modes de jeu</span>
+            <h2>Jouer</h2>
+            <p className="hb-p-sub">L'Arène pour un match rapide, Ma Ligue pour le week-end, la Carrière en solo.</p>
+            <div className="hb-chips">
+              <span className={'hb-chip' + (streak >= 2 ? ' hot' : '')}><b>{streak}</b> {streak > 1 ? 'victoires de suite' : 'victoire de suite'}</span>
+              <span className="hb-chip"><b>{won}/5</b> boosters gagnés aujourd'hui</span>
             </div>
-            <span className="hb-cta"><span>{lg.lock ? 'Voir ma ligue' : 'Composer mon équipe'}</span><Arrow /></span>
+            <span className="hb-cta"><span>Choisir un mode</span><Arrow /></span>
           </div>
         </Portal>
       </div>
 
       {/* ------------------------------ RACCOURCIS ------------------------------ */}
       <div className="hb-tiles">
-        <Tile route="boosters" color="#e4ff3c" label="Boosters" kicker="Boosters prêts" value={stock.n}
-          hint={stock.n > 0 ? 'Ouvrir maintenant' : 'Recharge en cours'} pack />
+        <Tile route="ligue" color={LEAGUE} label="Ma Ligue" kicker={`Ma Ligue · J${lg.gw.number}`}
+          value={lg.gw.phase !== 'open' ? 'Live' : lg.lock ? 'Prête' : `${t.d > 0 ? t.d + 'j ' : ''}${pad(t.h)}h${pad(t.m)}`}
+          hint={lg.gw.phase !== 'open' ? 'Voir les points' : lg.lock ? 'Équipe verrouillée' : 'Avant le verrouillage'} />
         <Tile route="team" color="#7ad7ff" label="Mon équipe" kicker="Collectif" value={hasTeam ? collectif.collectif : '—'}
           hint={hasTeam ? 'Ajuster la compo' : 'Composer mes 5 titulaires'} />
         <Tile route="carriere" color="#f5c542" label="Mode Carrière" kicker={career ? `Carrière · ${career.clubName}` : 'Mode Carrière'} value={career ? 'Niv ' + career.player.level : 'Solo'}
           hint={career ? (career.unread ? `${career.unread} lettre${career.unread > 1 ? 's' : ''} non lue${career.unread > 1 ? 's' : ''}` : career.next ? `Prochain match : ${career.next.oppName}` : `Saison ${seasonLabel(career.season)}`) : 'Crée ton joueur et choisis ton club'} />
-        <Tile route="collection" color="#c58bff" label="Collection" kicker="Ma collection" value={pool.length ? pool.length + (pool.length >= 200 ? '+' : '') : '—'}
+        <Tile route="collection" color="#c58bff" label="Collection" kicker="Ma collection" value={owned ? pool.length : '—'}
           hint="Voir toutes mes cartes" />
       </div>
 
@@ -235,6 +223,52 @@ export function LeagueScene({ lineup, locked }) {
       </div>
       {locked && <div className="hb-seal"><Lock /></div>}
     </div>
+  )
+}
+
+// Scène Boosters : la pile de sachets FootX sous un halo
+function BoostersScene({ n }) {
+  return (
+    <div className="hb-scene hb-bst-scene" aria-hidden="true">
+      <div className="hb-bst-rays" />
+      <div className="hb-bst-stack">
+        {n >= 3 && <div className="hb-bst-p p2"><BoosterPack idle /></div>}
+        {n >= 2 && <div className="hb-bst-p p1"><BoosterPack idle /></div>}
+        <div className={'hb-bst-p p0' + (n > 0 ? '' : ' empty')}><BoosterPack idle packs={1} /></div>
+      </div>
+    </div>
+  )
+}
+
+// Scène Jouer : les trois modes en éventail
+function PlayScene({ arena, league, career }) {
+  const modes = [
+    { k: 'arena', c: ARENA, label: "L'Arène", line: arena, icon: <b className="hb-mode-vs">VS</b> },
+    { k: 'league', c: LEAGUE, label: 'Ma Ligue', line: league, icon: <TrophyIcon /> },
+    { k: 'career', c: CAREER, label: 'Carrière', line: career ? career.line : 'Crée ton joueur', icon: career ? <img src={crestUrl(career.club, { tier: 2 })} alt="" /> : <b className="hb-mode-vs">?</b> },
+  ]
+  return (
+    <div className="hb-scene hb-play-scene" aria-hidden="true">
+      <div className="hb-play-glow" />
+      <div className="hb-modes">
+        {modes.map((m, i) => (
+          <div key={m.k} className={'hb-mode ' + m.k} style={{ '--mc': m.c, '--i': i - 1 }}>
+            <div className="hb-mode-ico">{m.icon}</div>
+            <strong>{m.label}</strong>
+            <small>{m.line}</small>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+function TrophyIcon() {
+  return (
+    <svg viewBox="0 0 48 48" width="1em" height="1em">
+      <path d="M14 7h20v9a10 10 0 0 1-20 0Z" fill="currentColor" />
+      <path d="M14 10H8v3a7 7 0 0 0 7 7M34 10h6v3a7 7 0 0 1-7 7" fill="none" stroke="currentColor" strokeWidth="3" />
+      <path d="M21 26h6v7h-6Z" fill="currentColor" /><rect x="15" y="33" width="18" height="6" rx="2" fill="currentColor" />
+    </svg>
   )
 }
 
