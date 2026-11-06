@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../supabase'
 import { getBorderColor, RARITIES, RARITY_LABEL } from '../lib/rarity'
-import { useStock, addStock, formatTime, MAX_STOCK } from '../lib/boosterStock'
+import { useStock, addStock, getStock, formatTime, MAX_STOCK } from '../lib/boosterStock'
 import PlayerCard from '../components/PlayerCard'
 import PackOpening from '../components/PackOpening'
 import BoosterPack from '../components/BoosterPack'
@@ -60,21 +60,46 @@ function Boosters() {
   // Pity : boosters ouverts depuis la dernière Iconique / la dernière Épique+
   const [pity, setPity] = useState(loadPity)
 
-  const maxQty = Math.min(10, MAX_STOCK, stock.n)
+  // Le maximum, c'est VRAIMENT tout ce que tu peux ouvrir : ton stock + ce que tes X-Coins peuvent acheter
+  // (10 boosters max par ouverture). Ce qui manque au stock est acheté automatiquement à l'ouverture.
+  const { balance } = useWallet()
+  const price = ECONOMY.boosterPrice
+  const affordable = Math.max(0, Math.floor((balance ?? 0) / price))
+  const maxQty = Math.min(10, MAX_STOCK, stock.n + affordable)
   const q = Math.max(1, Math.min(qty, maxQty || 1))
+  const toBuy = Math.max(0, q - stock.n)
+  const cost = toBuy * price
+  const [confirmBuy, setConfirmBuy] = useState(false)
+  useEffect(() => {
+    if (!confirmBuy) return
+    const t = setTimeout(() => setConfirmBuy(false), 3500)
+    return () => clearTimeout(t)
+  }, [confirmBuy])
+  useEffect(() => { setConfirmBuy(false) }, [q])
 
 
   const [opening, setOpening] = useState(false) // attente du tirage (serveur)
   const [openError, setOpenError] = useState(null)
-  const buyBooster = async () => {
+  // fromStock : "Ouvrir un autre" depuis le récap → uniquement avec le stock (pas d'achat sans confirmation)
+  const buyBooster = async (fromStock = false) => {
     // autorisé depuis l'écran d'accueil OU depuis le récap ("Ouvrir un autre")
-    if (opening || (!LIVE && !catalogue.length) || (step !== 'idle' && step !== 'premium') || stock.n < 1) return
+    if (opening || (!LIVE && !catalogue.length) || (step !== 'idle' && step !== 'premium')) return
+    const n = fromStock === true ? Math.min(q, getStock().n) : q
+    if (n < 1 || n > maxQty) return
+    const need = Math.max(0, n - getStock().n)
+    if (need > 0 && !confirmBuy) { setConfirmBuy(true); return } // 1er clic : on confirme la dépense
+    setConfirmBuy(false)
     setOpening(true)
     setOpenError(null)
     let res
     try {
+      if (need > 0) {
+        // achat des boosters manquants, puis ouverture de tout d'un coup
+        await eco.buyBoosters(need, 'buy-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8))
+        spendSound()
+      }
       // en ligne : le serveur tire les cartes, applique les garanties et décompte le stock
-      res = await eco.openBoosters(q, 'open-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8), catalogue)
+      res = await eco.openBoosters(n, 'open-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8), catalogue)
     } catch (e) {
       setOpenError(e.message || 'Ouverture impossible')
       setOpening(false)
@@ -82,12 +107,12 @@ function Boosters() {
     }
     setOpening(false)
     if (res.pity) setPity(res.pity)
-    track('booster_opened', q)
+    track('booster_opened', n)
     if (res.opened != null) setBoosterCount(res.opened)
 
     const all = [...res.cards].sort((a, b) => rank(b) - rank(a))
     setPulledCards(all)
-    setOpenedCount(q)
+    setOpenedCount(n)
     // ouverture premium carte par carte (1 ou plusieurs packs)
     setOpenId((n) => n + 1)
     setStep('premium')
@@ -140,8 +165,8 @@ function Boosters() {
         <div className="open-zone">
           {/* Vitrine : le même booster que dans l'ouverture (pile derrière si ×5 / ×10) */}
           <div
-            className={'pk-showcase' + (stock.n > 0 ? '' : ' empty')}
-            onClick={buyBooster}
+            className={'pk-showcase' + (maxQty > 0 ? '' : ' empty')}
+            onClick={() => buyBooster()}
             onKeyDown={(e) => { if (e.key === 'Enter') buyBooster() }}
             role="button" tabIndex={0}
             aria-label={q > 1 ? `Ouvrir ${q} boosters` : 'Ouvrir le booster'}
@@ -152,7 +177,6 @@ function Boosters() {
           </div>
 
           <div className="open-panel">
-            <BuyWithCoins />
             <div className="stock-line">
               <span><b>{stock.n}</b>/{MAX_STOCK} booster{stock.n > 1 ? 's' : ''} dispo</span>
               {stock.nextIn !== null && <small>+1 dans {formatTime(stock.nextIn)}</small>}
@@ -161,7 +185,13 @@ function Boosters() {
               )}
             </div>
 
-            {stock.n > 0 ? (
+            <p className="coin-line">
+              <CoinIcon className="shop-coin" />
+              <span>1 booster = <b>{fmtCoins(price)}</b> X-Coins</span>
+              {maxQty > 0 && <small>{affordable > 0 ? `tu peux en acheter ${Math.min(affordable, MAX_STOCK)}${affordable > MAX_STOCK ? '+' : ''}` : 'pas assez de X-Coins pour en acheter'}</small>}
+            </p>
+
+            {maxQty > 0 ? (
               <>
                 <label className="qty-label">Combien ?</label>
                 <div className="qty">
@@ -174,6 +204,7 @@ function Boosters() {
                 </div>
                 <input
                   className="qty-range" type="range" min="1" max={Math.max(1, maxQty)} value={q}
+                  style={{ '--own': maxQty > 1 ? Math.min(100, (Math.max(0, stock.n - 1) / (maxQty - 1)) * 100) + '%' : '100%' }}
                   onChange={(e) => setQty(parseInt(e.target.value))}
                 />
                 <div className="qty-presets">
@@ -190,13 +221,21 @@ function Boosters() {
                   Ouverture rapide <small>(sans animation)</small>
                 </label>
 
-                <button className="btn open-btn" onClick={buyBooster} disabled={loading || opening}>
-                  {loading ? 'Chargement…' : opening ? 'Tirage des cartes…' : q > 1 ? `Ouvrir ${q} boosters` : 'Ouvrir le booster'}
+                <p className={'open-split' + (toBuy ? ' buy' : '')}>
+                  {toBuy
+                    ? <>{Math.min(q, stock.n) > 0 ? <><b>{Math.min(q, stock.n)}</b> de ton stock + </> : null}<b>{toBuy}</b> acheté{toBuy > 1 ? 's' : ''} · <b className="gold">{fmtCoins(cost)}</b> X-Coins</>
+                    : <><b>{q}</b> pris dans ton stock · gratuit</>}
+                </p>
+                <button className={'btn open-btn' + (confirmBuy ? ' confirm' : '')} onClick={() => buyBooster()} disabled={loading || opening}>
+                  {loading ? 'Chargement…'
+                    : opening ? (toBuy ? 'Achat et tirage…' : 'Tirage des cartes…')
+                      : confirmBuy ? `Confirmer l'achat (${toBuy})`
+                        : q > 1 ? `Ouvrir ${q} boosters` : 'Ouvrir le booster'}
                 </button>
                 {openError && <p className="open-error" role="alert">{openError}</p>}
               </>
             ) : (
-              <p className="muted">Plus de boosters. Le prochain arrive dans {formatTime(stock.nextIn)}.</p>
+              <p className="muted">Plus de boosters, et pas assez de X-Coins pour en acheter. Le prochain arrive dans {formatTime(stock.nextIn)}.</p>
             )}
           </div>
         </div>
@@ -211,7 +250,7 @@ function Boosters() {
           packs={openedCount}
           stockLeft={stock.n}
           onAgain={resetBooster}
-          onOpenAnother={buyBooster}
+          onOpenAnother={() => buyBooster(true)}
         />
       )}
 
@@ -441,37 +480,3 @@ function DropRates({ onClose }) {
 
 export default Boosters
 
-// Boutique : acheter un booster avec des X-Coins (débit validé par le "serveur" d'économie).
-function BuyWithCoins() {
-  const { balance } = useWallet()
-  const stock = useStock()
-  const full = stock.n >= MAX_STOCK
-  const [state, setState] = useState('idle') // idle | confirm | busy | done | error
-  const [msg, setMsg] = useState('')
-  const price = ECONOMY.boosterPrice
-  const can = (balance ?? 0) >= price && !full
-  useEffect(() => {
-    if (state !== 'confirm' && state !== 'done' && state !== 'error') return
-    const t = setTimeout(() => setState('idle'), 2600)
-    return () => clearTimeout(t)
-  }, [state])
-  const buy = async () => {
-    if (state !== 'confirm') { setState('confirm'); return }
-    setState('busy')
-    try {
-      await eco.buyBoosters(1, 'b' + Date.now()) // le stock est mis à jour par l'économie (serveur en ligne)
-      spendSound()
-      setState('done')
-    } catch (e) { setMsg(e.message); setState('error') }
-  }
-  return (
-    <button className={'shop-buy ' + state} onClick={buy} disabled={!can || state === 'busy'} title={full ? `Stock plein (${MAX_STOCK} max)` : can ? '' : 'Pas assez de X-Coins'}>
-      <CoinIcon className="shop-coin" />
-      {state === 'confirm' ? `Confirmer : ${fmtCoins(price)} X-Coins ?`
-        : state === 'done' ? '+1 booster ajouté !'
-          : state === 'error' ? msg
-            : full ? `Stock plein · ${MAX_STOCK}/${MAX_STOCK} boosters`
-              : <>Acheter 1 booster · <b>{fmtCoins(price)}</b></>}
-    </button>
-  )
-}

@@ -109,6 +109,21 @@
 .qty input { background: var(--bg); border: none; border-left: 1px solid var(--border); border-right: 1px solid var(--border); color: var(--text); text-align: center; font-family: var(--title); font-weight: 800; font-size: 28px; padding: 6px 0; outline: none; -moz-appearance: textfield; }
 .qty input::-webkit-outer-spin-button, .qty input::-webkit-inner-spin-button { -webkit-appearance: none; }
 .qty-range { width: 100%; accent-color: var(--accent); }
+/* la jauge : en vert ce qui vient de ton stock, en or ce qui sera acheté */
+.qty-range { -webkit-appearance: none; appearance: none; height: 8px; border-radius: 99px; margin: 10px 0 4px; cursor: pointer;
+  background: linear-gradient(90deg, var(--accent) 0 var(--own, 100%), #f5c542 var(--own, 100%) 100%); }
+.qty-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 3px solid #0b0c08; box-shadow: 0 0 0 2px var(--accent); }
+.qty-range::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 3px solid #0b0c08; box-shadow: 0 0 0 2px var(--accent); }
+.coin-line { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; color: var(--muted); font-size: 14px; }
+.coin-line b { color: #f5c542; font-family: var(--title); font-size: 17px; }
+.coin-line small { margin-left: auto; font-size: 12.5px; }
+.coin-line .shop-coin { width: 20px; height: 20px; }
+.open-split { margin: 10px 0 0; text-align: center; color: var(--muted); font-size: 14px; }
+.open-split b { color: var(--text); }
+.open-split b.gold { color: #f5c542; }
+.open-btn.confirm { background: linear-gradient(180deg, #ffd45e, #f5b82e); color: #1a1405; animation: open-confirm .9s ease-in-out infinite alternate; }
+@keyframes open-confirm { to { box-shadow: 0 0 28px -4px rgba(245, 197, 66, .8); } }
+@media (prefers-reduced-motion: reduce) { .open-btn.confirm { animation: none; } }
 .qty-presets { display: flex; gap: 6px; flex-wrap: wrap; }
 .qty-presets button { flex: 1; background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 4px; padding: 6px 0; font-weight: 700; cursor: pointer; min-width: 40px; }
 .qty-presets button:hover { color: var(--text); }
